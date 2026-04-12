@@ -1,0 +1,10 @@
+node_modules/
+dist/
+.env
+*.shp
+*.shx
+*.dbf
+*.prj
+*.cpg
+*.qmd
+.DS_Store

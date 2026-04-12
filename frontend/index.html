@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Dakar GeoExplorer</title>
+
+  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
+  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg:#0f1923; --surface:#182231; --border:#2a3a50;
+      --accent:#00c896; --accent2:#0094ff; --text:#e8edf5;
+      --muted:#7a8fa8; --danger:#ff4f6a; --gold:#f0a500;
+      --radius:10px; --shadow:0 4px 24px rgba(0,0,0,0.5);
+    }
+    html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;}
+
+    /* TOPBAR */
+    #topbar{height:50px;background:#0a1520;border-bottom:2px solid var(--gold);display:flex;align-items:center;padding:0 18px;gap:0;flex-shrink:0;z-index:100;}
+    #topbar .brand{font-size:16px;font-weight:700;color:var(--accent);margin-right:28px;white-space:nowrap;}
+    #topbar .brand span{color:var(--gold);}
+    .tab-nav{display:flex;gap:2px;}
+    .tab-btn{padding:5px 16px;background:none;border:1px solid transparent;border-radius:6px;color:var(--muted);font-size:12.5px;cursor:pointer;transition:all 0.15s;}
+    .tab-btn:hover{color:var(--text);border-color:var(--border);}
+    .tab-btn.active{background:var(--surface);color:var(--accent);border-color:var(--accent);}
+    .topbar-right{margin-left:auto;font-size:11px;color:var(--muted);}
+    .topbar-right span{background:rgba(255,255,255,0.06);padding:3px 9px;border-radius:4px;font-size:10.5px;}
+
+    /* LAYOUT */
+    #root{display:flex;flex-direction:column;height:100vh;}
+    .view{flex:1;overflow:hidden;display:none;}
+    .view.active{display:flex;}
+
+    /* VUE CARTE */
+    #view-carte{flex-direction:row;}
+    #app{display:flex;width:100%;height:100%;}
+    #map{flex:1;}
+    #sidebar{width:320px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;z-index:10;transition:transform 0.3s ease;}
+    #sidebar-header{padding:20px 18px 14px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;}
+    #sidebar-header h1{font-size:17px;font-weight:700;color:var(--accent);letter-spacing:0.5px;margin-bottom:2px;}
+    #sidebar-header p{font-size:11px;color:var(--muted);}
+    #btn-close-sidebar{display:none;background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0;}
+    #search-box{padding:14px 18px 10px;border-bottom:1px solid var(--border);}
+    #search-input{width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:13px;outline:none;transition:border-color 0.2s;}
+    #search-input:focus{border-color:var(--accent);}
+    #search-input::placeholder{color:var(--muted);}
+    #filters{padding:10px 18px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:6px;}
+    .filter-btn{padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;transition:all 0.15s;}
+    .filter-btn:hover{border-color:var(--accent);color:var(--accent);}
+    .filter-btn.active{background:var(--accent);border-color:var(--accent);color:#000;font-weight:600;}
+    #btn-proches{margin:10px 18px;padding:9px;background:var(--accent2);border:none;border-radius:var(--radius);color:#fff;font-size:12px;font-weight:600;cursor:pointer;transition:opacity 0.2s;}
+    #btn-proches:hover{opacity:0.85;}
+    #btn-proches:disabled{opacity:0.4;cursor:not-allowed;}
+    #results{flex:1;overflow-y:auto;padding:6px 0;}
+    #results::-webkit-scrollbar{width:4px;}
+    #results::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+    .result-item{padding:11px 18px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.12s;}
+    .result-item:hover{background:rgba(0,200,150,0.06);}
+    .result-item:last-child{border-bottom:none;}
+    .result-nom{font-size:13px;font-weight:600;margin-bottom:3px;}
+    .result-meta{display:flex;gap:8px;align-items:center;}
+    .result-type{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;}
+    .result-dist{font-size:11px;color:var(--accent2);font-weight:600;}
+    .result-addr{font-size:11px;color:var(--muted);margin-top:3px;}
+    .type-h\00f4pital{background:#ff4f6a22;color:#ff4f6a;}
+    .type-\00e9cole{background:#0094ff22;color:#0094ff;}
+    .type-march\00e9{background:#ffab0022;color:#ffab00;}
+    .type-mosqu\00e9e{background:#00c89622;color:#00c896;}
+    .type-pharmacie{background:#bd5fff22;color:#bd5fff;}
+    .type-culture{background:#ff7a0022;color:#ff7a00;}
+    #status{padding:8px 18px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);}
+    .maplibregl-popup-content{background:var(--surface)!important;color:var(--text)!important;border:1px solid var(--border)!important;border-radius:var(--radius)!important;padding:14px 16px!important;box-shadow:var(--shadow)!important;min-width:200px;}
+    .maplibregl-popup-tip{border-top-color:var(--surface)!important;}
+    .popup-nom{font-size:14px;font-weight:700;margin-bottom:6px;color:var(--accent);}
+    .popup-desc{font-size:12px;color:var(--muted);margin-bottom:5px;}
+    .popup-addr{font-size:11px;color:var(--muted);font-style:italic;}
+    .popup-dist{font-size:12px;color:var(--accent2);font-weight:600;margin-top:6px;}
+    .empty-state{padding:40px 18px;text-align:center;color:var(--muted);font-size:13px;}
+    #credit{position:absolute;bottom:8px;right:8px;background:rgba(15,25,35,0.85);color:var(--muted);font-size:10px;padding:4px 10px;border-radius:6px;z-index:5;}
+    #btn-menu{display:none;position:absolute;top:60px;left:12px;z-index:20;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:20px;width:42px;height:42px;cursor:pointer;align-items:center;justify-content:center;box-shadow:var(--shadow);}
+    #overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:15;}
+
+    /* VUE PORTAIL */
+    #view-portail{flex-direction:row;overflow:hidden;}
+    .p-sidebar{width:200px;background:#0e1c2b;border-right:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;padding:12px 0;}
+    .p-sb-section{font-size:9px;text-transform:uppercase;letter-spacing:1.2px;color:rgba(255,255,255,0.3);padding:10px 16px 4px;}
+    .p-sb-item{display:flex;align-items:center;gap:8px;padding:8px 16px;font-size:12.5px;color:rgba(255,255,255,0.6);cursor:pointer;transition:all 0.12s;border-left:3px solid transparent;}
+    .p-sb-item:hover{background:rgba(255,255,255,0.05);color:var(--text);}
+    .p-sb-item.active{background:rgba(0,200,150,0.1);color:var(--accent);border-left-color:var(--gold);}
+    .p-sb-badge{margin-left:auto;background:var(--gold);color:#000;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;}
+    .p-main{flex:1;overflow-y:auto;padding:18px 20px;}
+    .p-main::-webkit-scrollbar{width:4px;}
+    .p-main::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
+    .p-header{margin-bottom:16px;display:flex;align-items:flex-start;justify-content:space-between;}
+    .p-header h2{font-size:18px;font-weight:700;margin-bottom:2px;}
+    .p-header p{font-size:11.5px;color:var(--muted);}
+    .p-tag{font-size:10px;background:rgba(0,200,150,0.12);color:var(--accent);border:1px solid rgba(0,200,150,0.3);padding:4px 10px;border-radius:4px;white-space:nowrap;}
+    .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
+    .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;border-top:3px solid transparent;animation:fadeUp 0.3s ease both;}
+    .kpi-card:nth-child(1){border-top-color:var(--accent);animation-delay:0.05s;}
+    .kpi-card:nth-child(2){border-top-color:var(--gold);animation-delay:0.10s;}
+    .kpi-card:nth-child(3){border-top-color:var(--accent2);animation-delay:0.15s;}
+    .kpi-card:nth-child(4){border-top-color:var(--danger);animation-delay:0.20s;}
+    .kpi-icon{font-size:18px;margin-bottom:6px;}
+    .kpi-lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:4px;}
+    .kpi-val{font-size:22px;font-weight:700;line-height:1;margin-bottom:4px;}
+    .kpi-sub{font-size:11px;color:var(--muted);}
+    .kpi-card:nth-child(1) .kpi-val{color:var(--accent);}
+    .kpi-card:nth-child(2) .kpi-val{color:var(--gold);}
+    .kpi-card:nth-child(3) .kpi-val{color:var(--accent2);}
+    .kpi-card:nth-child(4) .kpi-val{color:var(--danger);}
+    .p-section-lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:10px;}
+    .pipeline{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
+    .pipe-step{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
+    .pipe-hdr{display:flex;align-items:center;gap:7px;margin-bottom:8px;}
+    .pipe-num{width:20px;height:20px;border-radius:50%;background:var(--accent);color:#000;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;}
+    .pipe-name{font-size:11px;color:var(--muted);}
+    .pipe-val{font-size:19px;font-weight:700;margin-bottom:7px;}
+    .pipe-bar{height:4px;background:var(--bg);border-radius:2px;overflow:hidden;}
+    .pipe-fill{height:100%;border-radius:2px;}
+    .pipe-pct{font-size:10px;color:var(--muted);margin-top:3px;}
+    .grid2{display:grid;grid-template-columns:3fr 2fr;gap:16px;margin-bottom:16px;}
+    .grid2b{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
+    .p-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;}
+    .p-card-ttl{font-size:13px;font-weight:600;margin-bottom:2px;}
+    .p-card-sub{font-size:11px;color:var(--muted);margin-bottom:14px;}
+    .zone-table{width:100%;border-collapse:collapse;font-size:12px;}
+    .zone-table th{text-align:left;padding:5px 8px;font-size:9.5px;text-transform:uppercase;letter-spacing:0.7px;color:var(--muted);border-bottom:1px solid var(--border);}
+    .zone-table td{padding:8px 8px;border-bottom:1px solid var(--border);}
+    .zone-table tr:last-child td{border-bottom:none;}
+    .zone-table tr:hover td{background:rgba(255,255,255,0.03);}
+    .z-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
+    .z-bar-cell{width:90px;}
+    .z-bar{height:5px;background:rgba(255,255,255,0.07);border-radius:3px;overflow:hidden;}
+    .z-fill{height:100%;border-radius:3px;}
+    .z-pct{font-size:10px;color:var(--accent);font-weight:600;}
+    .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+    .stat-mini{background:rgba(255,255,255,0.04);border-radius:7px;padding:10px 12px;}
+    .stat-mini .lbl{font-size:10px;color:var(--muted);margin-bottom:2px;}
+    .stat-mini .val{font-size:15px;font-weight:700;}
+    .info-table{width:100%;font-size:12px;border-collapse:collapse;}
+    .info-table tr{border-bottom:1px solid var(--border);}
+    .info-table tr:last-child{border-bottom:none;}
+    .info-table td{padding:7px 0;}
+    .info-table td:first-child{color:var(--muted);}
+    .info-table td:last-child{text-align:right;font-family:'Courier New',monospace;font-size:11px;color:var(--accent2);}
+    @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
+    @media(max-width:768px){
+      #app{flex-direction:column;} #map{width:100%;height:100%;}
+      #sidebar{position:fixed;top:50px;left:0;height:calc(100% - 50px);width:300px;max-width:85vw;z-index:20;transform:translateX(-100%);box-shadow:4px 0 24px rgba(0,0,0,0.6);}
+      #sidebar.open{transform:translateX(0);} #overlay.open{display:block;}
+      #btn-menu{display:flex;} #btn-close-sidebar{display:block;}
+      .kpi-row{grid-template-columns:1fr 1fr;} .pipeline{grid-template-columns:1fr 1fr;}
+      .grid2,.grid2b{grid-template-columns:1fr;}
+    }
+  </style>
+</head>
+<body>
+<div id="root">
+
+  <div id="topbar">
+    <div class="brand">&#x1F5FA; Dakar<span>G&eacute;o</span>Explorer</div>
+    <div class="tab-nav">
+      <button class="tab-btn active" onclick="switchView('carte',this)">&#x1F5FA; Carte &amp; Lieux</button>
+      <button class="tab-btn" onclick="switchView('portail',this)">&#x1F4CA; Portail B&acirc;timents</button>
+    </div>
+    <div class="topbar-right"><span>BTS G&eacute;omatique &middot; CEDT G15</span></div>
+  </div>
+
+  <!-- VUE CARTE -->
+  <div id="view-carte" class="view active">
+    <div id="overlay"></div>
+    <button id="btn-menu" aria-label="Menu">&#9776;</button>
+    <div id="app">
+      <div id="sidebar">
+        <div id="sidebar-header">
+          <div><h1>&#x1F5FA; Dakar GeoExplorer</h1><p>Explore les lieux de Dakar &middot; PostGIS + MapLibre</p></div>
+          <button id="btn-close-sidebar" aria-label="Fermer">&#10005;</button>
+        </div>
+        <div id="search-box">
+          <input id="search-input" type="text" placeholder="Rechercher un lieu..." autocomplete="off" />
+        </div>
+        <div id="filters">
+          <button class="filter-btn active" data-type="">Tous</button>
+          <button class="filter-btn" data-type="h&#244;pital">&#x1F3E5; H&#244;pital</button>
+          <button class="filter-btn" data-type="&#233;cole">&#x1F393; &#201;cole</button>
+          <button class="filter-btn" data-type="march&#233;">&#x1F6D2; March&#233;</button>
+          <button class="filter-btn" data-type="mosqu&#233;e">&#x1F54C; Mosqu&#233;e</button>
+          <button class="filter-btn" data-type="pharmacie">&#x1F48A; Pharmacie</button>
+          <button class="filter-btn" data-type="culture">&#x1F3A8; Culture</button>
+        </div>
+        <button id="btn-proches" disabled>&#x1F4CD; Lieux proches de ma position</button>
+        <div id="results"><div class="empty-state">Chargement des donn&#233;es&hellip;</div></div>
+        <div id="status">&mdash; lieux charg&#233;s</div>
+      </div>
+      <div id="map"></div>
+    </div>
+    <div id="credit">Seydina Alioune Diop &middot; BTS G&#233;omatique &middot; CEDT G15</div>
+  </div>
+
+  <!-- VUE PORTAIL -->
+  <div id="view-portail" class="view">
+    <aside class="p-sidebar">
+      <div class="p-sb-section">Navigation</div>
+      <div class="p-sb-item active">&#x1F3E0; Accueil</div>
+      <div class="p-sb-item">&#x1F3D7; B&#226;timents <span class="p-sb-badge">766K</span></div>
+      <div class="p-sb-item">&#x1F4D0; Surfaces</div>
+      <div class="p-sb-item">&#x1F5C2; Classes</div>
+      <div style="height:1px;background:var(--border);margin:8px 14px;"></div>
+      <div class="p-sb-section">Analyse</div>
+      <div class="p-sb-item">&#x1F4CD; Par zone</div>
+      <div class="p-sb-item">&#x1F4C9; Projections</div>
+      <div class="p-sb-item">&#x1F50D; Recherche</div>
+      <div style="height:1px;background:var(--border);margin:8px 14px;"></div>
+      <div class="p-sb-section">Export</div>
+      <div class="p-sb-item">&#x1F4C4; Rapport PDF</div>
+      <div class="p-sb-item">&#x1F4E6; Shapefile</div>
+      <div class="p-sb-item">&#x1F517; API GeoJSON</div>
+    </aside>
+    <main class="p-main">
+      <div class="p-header">
+        <div>
+          <h2>Tableau de Bord &mdash; B&#226;timents de Dakar</h2>
+          <p>Source : BATIMENTS_DAKAR.shp &middot; EPSG:32628 &rarr; WGS84 &middot; PostGIS / PROCASEF Dakar</p>
+        </div>
+        <span class="p-tag">MIS &Agrave; JOUR LE 11 AVR. 2026</span>
+      </div>
+      <div class="kpi-row">
+        <div class="kpi-card"><div class="kpi-icon">&#x1F3D7;</div><div class="kpi-lbl">B&#226;timents identifi&#233;s</div><div class="kpi-val" id="kpi-total">766 423</div><div class="kpi-sub">Taux r&#233;alisation : 106.6%</div></div>
+        <div class="kpi-card"><div class="kpi-icon">&#x1F4D0;</div><div class="kpi-lbl">Surface totale</div><div class="kpi-val" id="kpi-surface">78.59 km&#178;</div><div class="kpi-sub">Emprise b&#226;tie totale</div></div>
+        <div class="kpi-card"><div class="kpi-icon">&#x1F4CA;</div><div class="kpi-lbl">Surface moyenne</div><div class="kpi-val" id="kpi-moy">102.5 m&#178;</div><div class="kpi-sub" id="kpi-med">M&#233;diane : 70.6 m&#178;</div></div>
+        <div class="kpi-card"><div class="kpi-icon">&#x1F5FA;</div><div class="kpi-lbl">Zones couvertes</div><div class="kpi-val" id="kpi-zones">6</div><div class="kpi-sub">Dakar &middot; Pikine &middot; Gu&#233;diawaye&hellip;</div></div>
+      </div>
+      <div class="p-section-lbl">&#9658; Pipeline de traitement des b&#226;timents</div>
+      <div class="pipeline">
+        <div class="pipe-step"><div class="pipe-hdr"><div class="pipe-num">1</div><span class="pipe-name">G&#233;om&#233;tries brutes</span></div><div class="pipe-val">766 423</div><div class="pipe-bar"><div class="pipe-fill" style="width:100%;background:var(--accent);"></div></div><div class="pipe-pct">100% &mdash; Source SHP</div></div>
+        <div class="pipe-step"><div class="pipe-hdr"><div class="pipe-num" style="background:var(--gold);color:#000;">2</div><span class="pipe-name">Surfaces calcul&#233;es</span></div><div class="pipe-val">766 423</div><div class="pipe-bar"><div class="pipe-fill" style="width:100%;background:var(--gold);"></div></div><div class="pipe-pct">100% &mdash; EPSG:32628</div></div>
+        <div class="pipe-step"><div class="pipe-hdr"><div class="pipe-num" style="background:var(--accent2);">3</div><span class="pipe-name">G&#233;or&#233;f&#233;renc&#233;s WGS84</span></div><div class="pipe-val">766 423</div><div class="pipe-bar"><div class="pipe-fill" style="width:100%;background:var(--accent2);"></div></div><div class="pipe-pct">100% &mdash; Reprojection OK</div></div>
+        <div class="pipe-step"><div class="pipe-hdr"><div class="pipe-num" style="background:var(--danger);">4</div><span class="pipe-name">Classifi&#233;s</span></div><div class="pipe-val">766 423</div><div class="pipe-bar"><div class="pipe-fill" style="width:100%;background:var(--danger);"></div></div><div class="pipe-pct">7 classes d&#233;finies</div></div>
+      </div>
+      <div class="grid2">
+        <div class="p-card">
+          <div class="p-card-ttl">Distribution par classe de surface</div>
+          <div class="p-card-sub">Nombre de b&#226;timents par tranche de superficie &mdash; donn&#233;es r&#233;elles</div>
+          <div style="position:relative;height:230px;"><canvas id="chartClasses" role="img" aria-label="Distribution des batiments par classe de surface"></canvas></div>
+        </div>
+        <div class="p-card">
+          <div class="p-card-ttl">R&#233;partition par zone</div>
+          <div class="p-card-sub">Part de chaque zone g&#233;ographique</div>
+          <div style="display:flex;align-items:center;gap:12px;">
+            <div style="position:relative;height:180px;width:180px;flex-shrink:0;"><canvas id="chartZones" role="img" aria-label="Repartition par zone"></canvas></div>
+            <div id="zones-legend" style="flex:1;font-size:11.5px;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="grid2b">
+        <div class="p-card">
+          <div class="p-card-ttl">D&#233;tail par zone g&#233;ographique</div>
+          <div class="p-card-sub">B&#226;timents identifi&#233;s &middot; Surface moyenne</div>
+          <table class="zone-table"><thead><tr><th>Zone</th><th>B&#226;timents</th><th>%</th><th class="z-bar-cell"></th></tr></thead><tbody id="zones-tbody"><tr><td colspan="4" style="color:var(--muted);font-size:11px;padding:8px;">Chargement&hellip;</td></tr></tbody></table>
+        </div>
+        <div class="p-card">
+          <div class="p-card-ttl">Statistiques de surface</div>
+          <div class="p-card-sub">M&#233;triques calcul&#233;es depuis la g&#233;om&#233;trie r&#233;elle</div>
+          <div class="stat-grid" style="margin-bottom:16px;">
+            <div class="stat-mini"><div class="lbl">Surface min</div><div class="val" style="color:var(--danger);" id="s-min">2.5 m&#178;</div></div>
+            <div class="stat-mini"><div class="lbl">Surface max</div><div class="val" style="color:var(--accent2);" id="s-max">42 732 m&#178;</div></div>
+            <div class="stat-mini"><div class="lbl">Moyenne</div><div class="val" style="color:var(--accent);" id="s-moy">102.5 m&#178;</div></div>
+            <div class="stat-mini"><div class="lbl">M&#233;diane</div><div class="val" style="color:var(--gold);" id="s-med">70.6 m&#178;</div></div>
+          </div>
+          <div class="p-card-ttl" style="margin-bottom:10px;">Infos techniques</div>
+          <table class="info-table">
+            <tr><td>Format source</td><td>.shp (ESRI Shapefile)</td></tr>
+            <tr><td>Projection source</td><td>EPSG:32628 UTM28N</td></tr>
+            <tr><td>Projection affichage</td><td>EPSG:4326 WGS84</td></tr>
+            <tr><td>Type g&#233;om&#233;trie</td><td>Polygon</td></tr>
+            <tr><td>Backend</td><td>Node.js + PostGIS</td></tr>
+            <tr><td>Total b&#226;timents</td><td style="color:var(--accent);font-weight:700;">766 423</td></tr>
+          </table>
+        </div>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+const API_BASE = 'https://dakargeo-v2.onrender.com/api';
+const TYPE_COLORS={'h\u00f4pital':'#ff4f6a','\u00e9cole':'#0094ff','march\u00e9':'#ffab00','mosqu\u00e9e':'#00c896','pharmacie':'#bd5fff','culture':'#ff7a00'};
+const TYPE_ICONS={'h\u00f4pital':'🏥','\u00e9cole':'🎓','march\u00e9':'🛒','mosqu\u00e9e':'🕌','pharmacie':'💊','culture':'🎨'};
+const ZONE_COLORS=['#3a88c8','#8860c0','#e0a03a','#e05a3a','#60a860','#e07a3a'];
+
+let currentType='',userLng=null,userLat=null,activePopup=null,allFeatures=[];
+let portailLoaded=false,chartClasses=null,chartZones=null;
+
+function switchView(view,btn){
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('view-'+view).classList.add('active');
+  btn.classList.add('active');
+  if(view==='portail'&&!portailLoaded) loadPortail();
+}
+
+const sidebar=document.getElementById('sidebar'),overlay=document.getElementById('overlay');
+const btnMenu=document.getElementById('btn-menu'),btnClose=document.getElementById('btn-close-sidebar');
+function openSidebar(){sidebar.classList.add('open');overlay.classList.add('open');}
+function closeSidebar(){sidebar.classList.remove('open');overlay.classList.remove('open');}
+function closeSidebarOnMobile(){if(window.innerWidth<=768)closeSidebar();}
+btnMenu.addEventListener('click',openSidebar);
+btnClose.addEventListener('click',closeSidebar);
+overlay.addEventListener('click',closeSidebar);
+
+const map=new maplibregl.Map({
+  container:'map',
+  style:{version:8,sources:{osm:{type:'raster',tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],tileSize:256,attribution:'\u00a9 OpenStreetMap contributors'}},layers:[{id:'osm-tiles',type:'raster',source:'osm'}]},
+  center:[-17.4677,14.7167],zoom:12,minZoom:10,maxZoom:18,
+});
+map.addControl(new maplibregl.NavigationControl(),'top-right');
+
+let markers=[];
+function clearMarkers(){markers.forEach(m=>m.remove());markers=[];}
+function createMarkerElement(f){
+  const t=f.properties.type||'culture',c=TYPE_COLORS[t]||'#fff',ic=TYPE_ICONS[t]||'📍';
+  const el=document.createElement('div');
+  el.style.cssText=`width:32px;height:32px;border-radius:50%;background:${c}22;border:2px solid ${c};display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;transition:transform 0.15s;`;
+  el.textContent=ic;el.title=f.properties.nom;
+  el.addEventListener('mouseenter',()=>{el.style.transform='scale(1.25)';});
+  el.addEventListener('mouseleave',()=>{el.style.transform='scale(1)';});
+  return el;
+}
+function showPopup(f,ll){
+  if(activePopup)activePopup.remove();
+  const p=f.properties,dist=p.distance_m?`<div class="popup-dist">📏 ${p.distance_m} m</div>`:'',ic=TYPE_ICONS[p.type]||'📍';
+  activePopup=new maplibregl.Popup({offset:20,closeButton:true,maxWidth:'280px'})
+    .setLngLat(ll).setHTML(`<div class="popup-nom">${ic} ${p.nom}</div><div class="result-type type-${p.type}" style="display:inline-block;margin-bottom:6px">${p.type}</div><div class="popup-desc">${p.description||''}</div><div class="popup-addr">${p.adresse||''}</div>${dist}`).addTo(map);
+}
+function addMarkersToMap(gj){
+  clearMarkers();allFeatures=gj.features;
+  gj.features.forEach(f=>{
+    const[lng,lat]=f.geometry.coordinates,el=createMarkerElement(f);
+    const m=new maplibregl.Marker({element:el}).setLngLat([lng,lat]).addTo(map);
+    el.addEventListener('click',()=>showPopup(f,[lng,lat]));markers.push(m);
+  });
+}
+function renderList(features){
+  const re=document.getElementById('results'),st=document.getElementById('status');
+  st.textContent=`${features.length} lieu${features.length>1?'x':''} affich\u00e9${features.length>1?'s':''}`;
+  if(!features.length){re.innerHTML='<div class="empty-state">Aucun lieu trouv\u00e9</div>';return;}
+  re.innerHTML=features.map(f=>{
+    const p=f.properties,dist=p.distance_m?`<span class="result-dist">📏 ${p.distance_m} m</span>`:'';
+    return `<div class="result-item" data-lng="${f.geometry.coordinates[0]}" data-lat="${f.geometry.coordinates[1]}"><div class="result-nom">${p.nom}</div><div class="result-meta"><span class="result-type type-${p.type}">${p.type}</span>${dist}</div><div class="result-addr">${p.adresse||''}</div></div>`;
+  }).join('');
+  re.querySelectorAll('.result-item').forEach((el,i)=>{
+    el.addEventListener('click',()=>{
+      const lng=parseFloat(el.dataset.lng),lat=parseFloat(el.dataset.lat);
+      map.flyTo({center:[lng,lat],zoom:15,duration:800});showPopup(features[i],[lng,lat]);closeSidebarOnMobile();
+    });
+  });
+}
+async function loadLieux(type=''){
+  try{
+    const res=await fetch(type?`${API_BASE}/lieux?type=${encodeURIComponent(type)}`:`${API_BASE}/lieux`);
+    const data=await res.json();
+    addMarkersToMap(data);renderList(data.features);
+    if(data.features.length>0){
+      const lngs=data.features.map(f=>f.geometry.coordinates[0]),lats=data.features.map(f=>f.geometry.coordinates[1]);
+      map.fitBounds([[Math.min(...lngs),Math.min(...lats)],[Math.max(...lngs),Math.max(...lats)]],{padding:60,maxZoom:14});
+    }
+  }catch(e){document.getElementById('results').innerHTML='<div class="empty-state">&#10060; Impossible de charger les donn\u00e9es.</div>';}
+}
+let searchTimeout=null;
+document.getElementById('search-input').addEventListener('input',function(){
+  clearTimeout(searchTimeout);const q=this.value.trim();
+  if(q.length<2){if(!q.length)loadLieux(currentType);return;}
+  searchTimeout=setTimeout(async()=>{
+    try{const res=await fetch(`${API_BASE}/lieux/search?q=${encodeURIComponent(q)}`);const data=await res.json();addMarkersToMap(data);renderList(data.features);}catch(e){}
+  },400);
+});
+document.querySelectorAll('.filter-btn').forEach(btn=>{
+  btn.addEventListener('click',function(){
+    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+    this.classList.add('active');currentType=this.dataset.type;
+    document.getElementById('search-input').value='';loadLieux(currentType);
+  });
+});
+const btnProches=document.getElementById('btn-proches');
+if('geolocation'in navigator){
+  navigator.geolocation.getCurrentPosition(pos=>{
+    userLng=pos.coords.longitude;userLat=pos.coords.latitude;
+    btnProches.disabled=false;btnProches.textContent='📍 Lieux proches de moi';
+    const uel=document.createElement('div');
+    uel.style.cssText='width:16px;height:16px;border-radius:50%;background:#0094ff;border:3px solid #fff;box-shadow:0 0 0 3px #0094ff55;';
+    new maplibregl.Marker({element:uel}).setLngLat([userLng,userLat]).addTo(map);
+  },()=>{btnProches.textContent='📍 Position non disponible';});
+}
+btnProches.addEventListener('click',async()=>{
+  if(!userLng||!userLat)return;
+  try{
+    const tp=currentType?`&type=${encodeURIComponent(currentType)}`:'';
+    const res=await fetch(`${API_BASE}/lieux/proches?lng=${userLng}&lat=${userLat}&limit=8${tp}`);
+    const data=await res.json();addMarkersToMap(data);renderList(data.features);
+    map.flyTo({center:[userLng,userLat],zoom:14,duration:1000});closeSidebarOnMobile();
+  }catch(e){}
+});
+map.on('load',()=>{loadLieux();});
+
+/* ── PORTAIL ── */
+const FALLBACK={
+  globales:{total_batiments:766423,surface_min:2.5,surface_max:42732.4,surface_moy:102.5,surface_mediane:70.6,surface_totale_km2:78.59},
+  zones:[
+    {zone_nom:'Pikine',nb_batiments:154491,surface_moy:98.2},
+    {zone_nom:'Rufisque / P\u00e9riph\u00e9rie',nb_batiments:144263,surface_moy:112.7},
+    {zone_nom:'Parcelles Assainies',nb_batiments:135477,surface_moy:95.4},
+    {zone_nom:'Dakar Centre',nb_batiments:113640,surface_moy:88.1},
+    {zone_nom:'Gu\u00e9diawaye',nb_batiments:110106,surface_moy:103.6},
+    {zone_nom:'Plateau / M\u00e9dina',nb_batiments:108446,surface_moy:117.3},
+  ],
+  classes:[
+    {classe_surface:'< 25 m\u00b2',nb_batiments:154426},
+    {classe_surface:'25\u201350 m\u00b2',nb_batiments:147726},
+    {classe_surface:'50\u2013100 m\u00b2',nb_batiments:173679},
+    {classe_surface:'100\u2013200 m\u00b2',nb_batiments:216187},
+    {classe_surface:'200\u2013500 m\u00b2',nb_batiments:67114},
+    {classe_surface:'500\u20131000 m\u00b2',nb_batiments:5157},
+    {classe_surface:'> 1000 m\u00b2',nb_batiments:2134},
+  ],
+};
+
+async function loadPortail(){
+  portailLoaded=true;
+  let data=FALLBACK;
+  try{const res=await fetch(`${API_BASE}/batiments/dashboard`);if(res.ok)data=await res.json();}catch(e){}
+  const g=data.globales;
+  document.getElementById('kpi-total').textContent=Number(g.total_batiments).toLocaleString('fr-FR');
+  document.getElementById('kpi-surface').textContent=g.surface_totale_km2+' km\u00b2';
+  document.getElementById('kpi-moy').textContent=g.surface_moy+' m\u00b2';
+  document.getElementById('kpi-med').textContent='M\u00e9diane : '+g.surface_mediane+' m\u00b2';
+  document.getElementById('s-min').textContent=g.surface_min+' m\u00b2';
+  document.getElementById('s-max').textContent=Number(g.surface_max).toLocaleString('fr-FR')+' m\u00b2';
+  document.getElementById('s-moy').textContent=g.surface_moy+' m\u00b2';
+  document.getElementById('s-med').textContent=g.surface_mediane+' m\u00b2';
+  renderZones(data.zones);renderChartC(data.classes);renderChartZ(data.zones);
+}
+function renderZones(zones){
+  const total=zones.reduce((s,z)=>s+Number(z.nb_batiments),0);
+  const max=Math.max(...zones.map(z=>Number(z.nb_batiments)));
+  document.getElementById('zones-tbody').innerHTML=zones.map((z,i)=>{
+    const pct=((Number(z.nb_batiments)/total)*100).toFixed(1),w=((Number(z.nb_batiments)/max)*100).toFixed(0),c=ZONE_COLORS[i%ZONE_COLORS.length];
+    return `<tr><td><span class="z-dot" style="background:${c};"></span>${z.zone_nom}</td><td><strong>${Number(z.nb_batiments).toLocaleString('fr-FR')}</strong></td><td><span class="z-pct">${pct}%</span></td><td class="z-bar-cell"><div class="z-bar"><div class="z-fill" style="width:${w}%;background:${c};"></div></div></td></tr>`;
+  }).join('');
+}
+function renderChartC(classes){
+  const ctx=document.getElementById('chartClasses').getContext('2d');
+  if(chartClasses)chartClasses.destroy();
+  chartClasses=new Chart(ctx,{type:'bar',data:{labels:classes.map(c=>c.classe_surface),datasets:[{label:'B\u00e2timents',data:classes.map(c=>Number(c.nb_batiments)),backgroundColor:['#e05a3a','#e07a3a','#e0a03a','#00c896','#0094ff','#8860c0','#c0392b'],borderRadius:4,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.parsed.y.toLocaleString('fr-FR')+' b\u00e2timents'}}},scales:{x:{grid:{display:false},ticks:{color:'#7a8fa8',font:{size:10},maxRotation:30}},y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#7a8fa8',font:{size:10},callback:v=>(v/1000).toFixed(0)+'K'}}}}});
+}
+function renderChartZ(zones){
+  const ctx=document.getElementById('chartZones').getContext('2d');
+  const total=zones.reduce((s,z)=>s+Number(z.nb_batiments),0);
+  if(chartZones)chartZones.destroy();
+  chartZones=new Chart(ctx,{type:'doughnut',data:{labels:zones.map(z=>z.zone_nom),datasets:[{data:zones.map(z=>Number(z.nb_batiments)),backgroundColor:ZONE_COLORS,borderWidth:2,borderColor:'#182231'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.parsed.toLocaleString('fr-FR')+' b\u00e2timents'}}}}});
+  document.getElementById('zones-legend').innerHTML=zones.map((z,i)=>{
+    const pct=((Number(z.nb_batiments)/total)*100).toFixed(1);
+    return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;"><div style="width:9px;height:9px;border-radius:50%;background:${ZONE_COLORS[i]};flex-shrink:0;"></div><span style="color:#7a8fa8;flex:1;font-size:11px;">${z.zone_nom.replace(' / P\u00e9riph\u00e9rie','')}</span><strong style="color:#e8edf5;">${pct}%</strong></div>`;
+  }).join('');
+}
+</script>
+</body>
+</html>
