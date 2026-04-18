@@ -3,10 +3,6 @@ import pool from '../db';
 
 const router = Router();
 
-// ─────────────────────────────────────────────
-// GET /api/batiments/stats
-// Stats globales : total, surface min/max/moy/mediane
-// ─────────────────────────────────────────────
 router.get('/stats', async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(`SELECT * FROM stats_globales`);
@@ -17,10 +13,6 @@ router.get('/stats', async (_req: Request, res: Response) => {
   }
 });
 
-// ─────────────────────────────────────────────
-// GET /api/batiments/zones
-// Répartition des bâtiments par zone géographique
-// ─────────────────────────────────────────────
 router.get('/zones', async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(`SELECT * FROM stats_zones ORDER BY nb_batiments DESC`);
@@ -31,10 +23,6 @@ router.get('/zones', async (_req: Request, res: Response) => {
   }
 });
 
-// ─────────────────────────────────────────────
-// GET /api/batiments/classes
-// Distribution par classe de surface
-// ─────────────────────────────────────────────
 router.get('/classes', async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(`SELECT * FROM stats_classes`);
@@ -45,10 +33,6 @@ router.get('/classes', async (_req: Request, res: Response) => {
   }
 });
 
-// ─────────────────────────────────────────────
-// GET /api/batiments/dashboard
-// Toutes les données du portail en 1 appel
-// ─────────────────────────────────────────────
 router.get('/dashboard', async (_req: Request, res: Response) => {
   try {
     const [globales, zones, classes] = await Promise.all([
@@ -68,11 +52,6 @@ router.get('/dashboard', async (_req: Request, res: Response) => {
   }
 });
 
-// ─────────────────────────────────────────────
-// GET /api/batiments/geojson?zone=Pikine&limit=500
-// GeoJSON d'un échantillon de bâtiments pour la carte
-// (766K bâtiments = trop lourd, on limite par zone)
-// ─────────────────────────────────────────────
 router.get('/geojson', async (req: Request, res: Response) => {
   try {
     const zone  = req.query.zone  as string | undefined;
@@ -133,10 +112,6 @@ router.get('/geojson', async (req: Request, res: Response) => {
   }
 });
 
-// ─────────────────────────────────────────────
-// GET /api/batiments/proches?lng=X&lat=Y&limit=10
-// Bâtiments les plus proches d'un point (KNN)
-// ─────────────────────────────────────────────
 router.get('/proches', async (req: Request, res: Response) => {
   try {
     const { lng, lat, limit } = req.query;
