@@ -355,6 +355,7 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var
           </div>
         </div>
         <button id="btn-load-bat">&#x1F5FA; Charger les b&#226;timents</button>
+        <button id="btn-export-bat" onclick="exportBatGeoJSON()" style="display:none;width:100%;padding:9px;background:var(--s2);border:1px solid var(--go);border-radius:var(--rd);color:var(--go);font-size:11.5px;font-weight:600;cursor:pointer;margin-top:4px;" onmouseover="this.style.background='rgba(255,184,0,0.1)'" onmouseout="this.style.background='var(--s2)'">&#x1F4BE; Exporter en GeoJSON</button>
         <div class="bat-legend">
           <div style="font-size:10px;color:var(--mu);margin-bottom:4px;">L&#233;gende des zones</div>
           <div class="leg-row"><div class="leg-sq" style="background:#00e5a0;"></div>Pikine</div>
@@ -782,7 +783,7 @@ document.getElementById('btn-load-bat').addEventListener('click',async()=>{
     map.getSource('batiments').setData(gj);
     map.setPaintProperty('batiments-line','line-width',showBorder?1:0);
     toast(`\u2705 ${gj.features.length} b\u00e2timents affich\u00e9s`);
-    // Zoomer sur les bâtiments chargés
+    window._lastBatGeoJSON=gj;window._lastBatZone=zone||'toutes-zones';document.getElementById('btn-export-bat').style.display='block';
     if(gj.features.length>0){
       const coords=gj.features.flatMap(f=>{
         const g=f.geometry;
@@ -792,7 +793,7 @@ document.getElementById('btn-load-bat').addEventListener('click',async()=>{
       });
       if(coords.length){
         const lngs=coords.map(c=>c[0]),lats=coords.map(c=>c[1]);
-        map.fitBounds([[Math.min(...lngs),Math.min(...lats)],[Math.max(...lngs),Math.max(...lats)]],{padding:40,maxZoom:15,duration:1000});
+        map.fitBounds([[Math.min(...lngs),Math.min(...lats)],[Math.max(...lngs),Math.max(...lats)]],{padding:30,maxZoom:17,duration:1200});
       }
     }
   }catch(e){toast('\u274C Erreur : '+e.message);}
@@ -1116,6 +1117,18 @@ function renderCharts(data){
       chartZB=new Chart(cb.getContext('2d'),{type:'bar',data:{labels:data.zones.map(z=>z.zone_nom.split(' ')[0]),datasets:[{data:data.zones.map(z=>Number(z.nb_batiments)),backgroundColor:ZONE_COLORS,borderRadius:4,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{x:{grid:{display:false},ticks:{color:'#5a7a99',font:{size:9}}},y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#5a7a99',font:{size:9},callback:v=>(v/1000).toFixed(0)+'K'}}}}});
     }
   },100);
+}
+
+function exportBatGeoJSON(){
+  if(!window._lastBatGeoJSON){toast('⚠️ Chargez d'abord des bâtiments');return;}
+  const zone=window._lastBatZone||'batiments';
+  const nb=window._lastBatGeoJSON.features.length;
+  const blob=new Blob([JSON.stringify(window._lastBatGeoJSON,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download='dakargeo_'+zone.replace(/ \//g,'_')+'_'+nb+'bat.geojson';
+  a.click();
+  toast('✅ '+nb+' bâtiments exportés en GeoJSON !');
 }
 
 function exportCSV(){
