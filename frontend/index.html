@@ -1120,7 +1120,7 @@ function renderCharts(data){
 }
 
 function exportBatGeoJSON(){
-  if(!window._lastBatGeoJSON){toast('⚠️ Chargez d'abord des bâtiments');return;}
+  if(!window._lastBatGeoJSON){toast("⚠️ Chargez d'abord des bâtiments");return;}
   const zone=window._lastBatZone||'batiments';
   const nb=window._lastBatGeoJSON.features.length;
   const blob=new Blob([JSON.stringify(window._lastBatGeoJSON,null,2)],{type:'application/json'});
