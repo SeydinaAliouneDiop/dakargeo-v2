@@ -355,7 +355,7 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var
           </div>
         </div>
         <button id="btn-load-bat">&#x1F5FA; Charger les b&#226;timents</button>
-        id="btn-export-bat" onclick="exportBatZone()" style="display:none;width:100%;padding:9px;background:var(--s2);border:1px solid var(--go);border-radius:var(--rd);color:var(--go);font-size:11.5px;font-weight:600;cursor:pointer;margin-top:4px;">&#x1F4BE; T&#233;l&#233;charger TOUS les b&#226;timents (GeoJSON)</button>
+        id="btn-export-bat" onclick="exportBatZone()" style="display:block;opacity:0.45;width:100%;padding:9px;background:var(--s2);border:1px solid var(--go);border-radius:var(--rd);color:var(--go);font-size:11.5px;font-weight:600;cursor:pointer;margin-top:4px;">&#x1F4BE; T&#233;l&#233;charger TOUS les b&#226;timents (GeoJSON)</button>
         <div id="export-info" style="font-size:9.5px;color:var(--mu);margin-top:3px;text-align:center;"></div>
         <div class="bat-legend">
           <div style="font-size:10px;color:var(--mu);margin-bottom:4px;">L&#233;gende des zones</div>
@@ -784,7 +784,7 @@ document.getElementById('btn-load-bat').addEventListener('click',async()=>{
     map.getSource('batiments').setData(gj);
     map.setPaintProperty('batiments-line','line-width',showBorder?1:0);
     toast(`\u2705 ${gj.features.length} b\u00e2timents affich\u00e9s`);
-    window._lastBatGeoJSON=gj;window._lastBatZone=zone||'toutes-zones';window._batLoaded=true;document.getElementById('btn-export-bat').style.display='block';document.getElementById('export-info').textContent='Zone : '+(zone||'Toutes')+' | '+gj.features.length+' affichés (clic pour tout télécharger)';
+    window._lastBatGeoJSON=gj;window._lastBatZone=zone||'toutes-zones';var eb=document.getElementById('btn-export-bat');if(eb){eb.style.display='block';eb.style.opacity='1';}document.getElementById('export-info').textContent='Zone : '+(zone||'Toutes')+' | '+gj.features.length+' affichés (clic pour tout télécharger)';
     if(gj.features.length>0){
       const coords=gj.features.flatMap(f=>{
         const g=f.geometry;
@@ -1121,44 +1121,36 @@ function renderCharts(data){
 }
 
 function exportBatZone(){
-  if(!window._lastBatGeoJSON || !window._batLoaded){
-    toast('Chargez d\'abord des batiments sur la carte');
+  if(!window._lastBatGeoJSON){
+    toast('Chargez d'abord des bâtiments !');
     return;
   }
-  const btn = document.getElementById('btn-export-bat');
-  const info = document.getElementById('export-info');
-  const zone = window._lastBatZone || 'toutes-zones';
-  const features = window._lastBatGeoJSON.features || [];
-  const nb = features.length;
-  const filename = 'dakargeo_' + zone.replace(/[^a-zA-Z0-9]/g,'_') + '_' + nb + 'bat.geojson';
-
-  if(btn) { btn.disabled=true; btn.textContent='Generation...'; }
-  if(info) info.textContent = 'Preparation de ' + nb.toLocaleString('fr-FR') + ' batiments...';
-
-  setTimeout(() => {
-    try {
-      const geojson = {
-        type: 'FeatureCollection',
-        name: 'DakarGeo_' + zone,
-        features: features
-      };
-      const blob = new Blob([JSON.stringify(geojson)], {type:'application/geo+json'});
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(a.href);
-      toast('\u2705 ' + nb.toLocaleString('fr-FR') + ' batiments exportes !');
-      if(info) info.textContent = '\u2705 ' + filename;
-    } catch(e) {
-      toast('Erreur : ' + e.message);
-      if(info) info.textContent = 'Erreur : ' + e.message;
-    } finally {
-      if(btn) { btn.disabled=false; btn.textContent='\ud83d\udcbe Telecharger en GeoJSON'; }
+  var features = window._lastBatGeoJSON.features || [];
+  if(!features.length){ toast('Aucun bâtiment chargé'); return; }
+  var zone = (window._lastBatZone || 'dakar').replace(/[^a-zA-Z0-9]/g,'_');
+  var nb   = features.length;
+  var fname= 'dakargeo_'+zone+'_'+nb+'_batiments.geojson';
+  var btn  = document.getElementById('btn-export-bat');
+  var info = document.getElementById('export-info');
+  if(btn){ btn.disabled=true; btn.textContent='Génération...'; }
+  if(info){ info.textContent='Préparation...'; }
+  setTimeout(function(){
+    try{
+      var blob=new Blob([JSON.stringify({type:'FeatureCollection',features:features})],{type:'application/geo+json'});
+      var url=URL.createObjectURL(blob);
+      var a=document.createElement('a');
+      a.href=url; a.download=fname;
+      document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function(){URL.revokeObjectURL(url);},1000);
+      toast('✅ '+nb.toLocaleString('fr-FR')+' bâtiments exportés !');
+      if(info){ info.textContent='✅ '+fname; }
+    }catch(e){
+      toast('Erreur : '+e.message);
+      if(info){ info.textContent='Erreur : '+e.message; }
+    }finally{
+      if(btn){ btn.disabled=false; btn.textContent='💾 Télécharger en GeoJSON'; }
     }
-  }, 50);
+  },50);
 }
 
 function exportCSV(){
