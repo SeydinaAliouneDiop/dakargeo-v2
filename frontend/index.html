@@ -255,7 +255,20 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var
   .tb-badge{display:none;}
 }
 @media(max-width:480px){
-  .p-sb{display:none;}
+  .p-sb{position:fixed;
+  top:52px;
+  left:0;
+  height:calc(100% - 52px);
+  transform:translateX(-100%);
+  width:85vw;
+  max-width:260px;
+  z-index:20;
+  transition:transform 0.3s;
+
+  }
+  .p-sb.open{
+  transform:translateX(0);
+}
   #view-portail{flex-direction:column;}
   .p-main{padding:10px 12px;}
   .kpi-row{grid-template-columns:1fr 1fr;}
