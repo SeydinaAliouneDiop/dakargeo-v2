@@ -1,471 +1,795 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dakar GeoExplorer</title>
-
-  <link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet" />
-  <script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-
-  <style>
-    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-    :root {
-      --bg:#0f1923; --surface:#182231; --border:#2a3a50;
-      --accent:#00c896; --accent2:#0094ff; --text:#e8edf5;
-      --muted:#7a8fa8; --danger:#ff4f6a; --gold:#f0a500;
-      --radius:10px; --shadow:0 4px 24px rgba(0,0,0,0.5);
-    }
-    html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);overflow:hidden;}
-
-    /* TOPBAR */
-    #topbar{height:50px;background:#0a1520;border-bottom:2px solid var(--gold);display:flex;align-items:center;padding:0 18px;gap:0;flex-shrink:0;z-index:100;}
-    #topbar .brand{font-size:16px;font-weight:700;color:var(--accent);margin-right:28px;white-space:nowrap;}
-    #topbar .brand span{color:var(--gold);}
-    .tab-nav{display:flex;gap:2px;}
-    .tab-btn{padding:5px 16px;background:none;border:1px solid transparent;border-radius:6px;color:var(--muted);font-size:12.5px;cursor:pointer;transition:all 0.15s;}
-    .tab-btn:hover{color:var(--text);border-color:var(--border);}
-    .tab-btn.active{background:var(--surface);color:var(--accent);border-color:var(--accent);}
-    .topbar-right{margin-left:auto;font-size:11px;color:var(--muted);}
-    .topbar-right span{background:rgba(255,255,255,0.06);padding:3px 9px;border-radius:4px;font-size:10.5px;}
-
-    /* LAYOUT */
-    #root{display:flex;flex-direction:column;height:100vh;}
-    .view{flex:1;overflow:hidden;display:none;}
-    .view.active{display:flex;}
-
-    /* VUE CARTE */
-    #view-carte{flex-direction:row;}
-    #app{display:flex;width:100%;height:100%;}
-    #map{flex:1;}
-    #sidebar{width:320px;background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;overflow:hidden;z-index:10;transition:transform 0.3s ease;}
-    #sidebar-header{padding:20px 18px 14px;border-bottom:1px solid var(--border);display:flex;align-items:flex-start;justify-content:space-between;}
-    #sidebar-header h1{font-size:17px;font-weight:700;color:var(--accent);letter-spacing:0.5px;margin-bottom:2px;}
-    #sidebar-header p{font-size:11px;color:var(--muted);}
-    #btn-close-sidebar{display:none;background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;padding:0 4px;line-height:1;flex-shrink:0;}
-    #search-box{padding:14px 18px 10px;border-bottom:1px solid var(--border);}
-    #search-input{width:100%;padding:9px 12px;background:var(--bg);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:13px;outline:none;transition:border-color 0.2s;}
-    #search-input:focus{border-color:var(--accent);}
-    #search-input::placeholder{color:var(--muted);}
-    #filters{padding:10px 18px;border-bottom:1px solid var(--border);display:flex;flex-wrap:wrap;gap:6px;}
-    .filter-btn{padding:4px 10px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--muted);font-size:11px;cursor:pointer;transition:all 0.15s;}
-    .filter-btn:hover{border-color:var(--accent);color:var(--accent);}
-    .filter-btn.active{background:var(--accent);border-color:var(--accent);color:#000;font-weight:600;}
-    #btn-proches{margin:10px 18px;padding:9px;background:var(--accent2);border:none;border-radius:var(--radius);color:#fff;font-size:12px;font-weight:600;cursor:pointer;transition:opacity 0.2s;}
-    #btn-proches:hover{opacity:0.85;}
-    #btn-proches:disabled{opacity:0.4;cursor:not-allowed;}
-    #results{flex:1;overflow-y:auto;padding:6px 0;}
-    #results::-webkit-scrollbar{width:4px;}
-    #results::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
-    .result-item{padding:11px 18px;border-bottom:1px solid var(--border);cursor:pointer;transition:background 0.12s;}
-    .result-item:hover{background:rgba(0,200,150,0.06);}
-    .result-item:last-child{border-bottom:none;}
-    .result-nom{font-size:13px;font-weight:600;margin-bottom:3px;}
-    .result-meta{display:flex;gap:8px;align-items:center;}
-    .result-type{font-size:10px;padding:2px 7px;border-radius:10px;font-weight:600;text-transform:uppercase;letter-spacing:0.4px;}
-    .result-dist{font-size:11px;color:var(--accent2);font-weight:600;}
-    .result-addr{font-size:11px;color:var(--muted);margin-top:3px;}
-    .type-h\00f4pital{background:#ff4f6a22;color:#ff4f6a;}
-    .type-\00e9cole{background:#0094ff22;color:#0094ff;}
-    .type-march\00e9{background:#ffab0022;color:#ffab00;}
-    .type-mosqu\00e9e{background:#00c89622;color:#00c896;}
-    .type-pharmacie{background:#bd5fff22;color:#bd5fff;}
-    .type-culture{background:#ff7a0022;color:#ff7a00;}
-    #status{padding:8px 18px;font-size:11px;color:var(--muted);border-top:1px solid var(--border);}
-    .maplibregl-popup-content{background:var(--surface)!important;color:var(--text)!important;border:1px solid var(--border)!important;border-radius:var(--radius)!important;padding:14px 16px!important;box-shadow:var(--shadow)!important;min-width:200px;}
-    .maplibregl-popup-tip{border-top-color:var(--surface)!important;}
-    .popup-nom{font-size:14px;font-weight:700;margin-bottom:6px;color:var(--accent);}
-    .popup-desc{font-size:12px;color:var(--muted);margin-bottom:5px;}
-    .popup-addr{font-size:11px;color:var(--muted);font-style:italic;}
-    .popup-dist{font-size:12px;color:var(--accent2);font-weight:600;margin-top:6px;}
-    .empty-state{padding:40px 18px;text-align:center;color:var(--muted);font-size:13px;}
-    #credit{position:absolute;bottom:8px;right:8px;background:rgba(15,25,35,0.85);color:var(--muted);font-size:10px;padding:4px 10px;border-radius:6px;z-index:5;}
-    #btn-menu{display:none;position:absolute;top:60px;left:12px;z-index:20;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:20px;width:42px;height:42px;cursor:pointer;align-items:center;justify-content:center;box-shadow:var(--shadow);}
-    #overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.55);z-index:15;}
-
-    /* VUE PORTAIL */
-    #view-portail{flex-direction:row;overflow:hidden;}
-    .p-sidebar{width:200px;background:#0e1c2b;border-right:1px solid var(--border);flex-shrink:0;display:flex;flex-direction:column;padding:12px 0;}
-    .p-sb-section{font-size:9px;text-transform:uppercase;letter-spacing:1.2px;color:rgba(255,255,255,0.3);padding:10px 16px 4px;}
-    .p-sb-item{display:flex;align-items:center;gap:8px;padding:8px 16px;font-size:12.5px;color:rgba(255,255,255,0.6);cursor:pointer;transition:all 0.12s;border-left:3px solid transparent;}
-    .p-sb-item:hover{background:rgba(255,255,255,0.05);color:var(--text);}
-    .p-sb-item.active{background:rgba(0,200,150,0.1);color:var(--accent);border-left-color:var(--gold);}
-    .p-sb-badge{margin-left:auto;background:var(--gold);color:#000;font-size:9px;font-weight:700;padding:1px 6px;border-radius:8px;}
-    .p-main{flex:1;overflow-y:auto;padding:18px 20px;}
-    .p-main::-webkit-scrollbar{width:4px;}
-    .p-main::-webkit-scrollbar-thumb{background:var(--border);border-radius:4px;}
-    .p-header{margin-bottom:16px;display:flex;align-items:flex-start;justify-content:space-between;}
-    .p-header h2{font-size:18px;font-weight:700;margin-bottom:2px;}
-    .p-header p{font-size:11.5px;color:var(--muted);}
-    .p-tag{font-size:10px;background:rgba(0,200,150,0.12);color:var(--accent);border:1px solid rgba(0,200,150,0.3);padding:4px 10px;border-radius:4px;white-space:nowrap;}
-    .kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px;}
-    .kpi-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:14px 16px;border-top:3px solid transparent;animation:fadeUp 0.3s ease both;}
-    .kpi-card:nth-child(1){border-top-color:var(--accent);animation-delay:0.05s;}
-    .kpi-card:nth-child(2){border-top-color:var(--gold);animation-delay:0.10s;}
-    .kpi-card:nth-child(3){border-top-color:var(--accent2);animation-delay:0.15s;}
-    .kpi-card:nth-child(4){border-top-color:var(--danger);animation-delay:0.20s;}
-    .kpi-icon{font-size:18px;margin-bottom:6px;}
-    .kpi-lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:0.8px;color:var(--muted);margin-bottom:4px;}
-    .kpi-val{font-size:22px;font-weight:700;line-height:1;margin-bottom:4px;}
-    .kpi-sub{font-size:11px;color:var(--muted);}
-    .kpi-card:nth-child(1) .kpi-val{color:var(--accent);}
-    .kpi-card:nth-child(2) .kpi-val{color:var(--gold);}
-    .kpi-card:nth-child(3) .kpi-val{color:var(--accent2);}
-    .kpi-card:nth-child(4) .kpi-val{color:var(--danger);}
-    .p-section-lbl{font-size:9.5px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);margin-bottom:10px;}
-    .pipeline{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px;}
-    .pipe-step{background:var(--surface);border:1px solid var(--border);border-radius:8px;padding:12px 14px;}
-    .pipe-hdr{display:flex;align-items:center;gap:7px;margin-bottom:8px;}
-    .pipe-num{width:20px;height:20px;border-radius:50%;background:var(--accent);color:#000;font-size:10px;font-weight:700;display:flex;align-items:center;justify-content:center;}
-    .pipe-name{font-size:11px;color:var(--muted);}
-    .pipe-val{font-size:19px;font-weight:700;margin-bottom:7px;}
-    .pipe-bar{height:4px;background:var(--bg);border-radius:2px;overflow:hidden;}
-    .pipe-fill{height:100%;border-radius:2px;}
-    .pipe-pct{font-size:10px;color:var(--muted);margin-top:3px;}
-    .grid2{display:grid;grid-template-columns:3fr 2fr;gap:16px;margin-bottom:16px;}
-    .grid2b{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;}
-    .p-card{background:var(--surface);border:1px solid var(--border);border-radius:10px;padding:16px;}
-    .p-card-ttl{font-size:13px;font-weight:600;margin-bottom:2px;}
-    .p-card-sub{font-size:11px;color:var(--muted);margin-bottom:14px;}
-    .zone-table{width:100%;border-collapse:collapse;font-size:12px;}
-    .zone-table th{text-align:left;padding:5px 8px;font-size:9.5px;text-transform:uppercase;letter-spacing:0.7px;color:var(--muted);border-bottom:1px solid var(--border);}
-    .zone-table td{padding:8px 8px;border-bottom:1px solid var(--border);}
-    .zone-table tr:last-child td{border-bottom:none;}
-    .zone-table tr:hover td{background:rgba(255,255,255,0.03);}
-    .z-dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;}
-    .z-bar-cell{width:90px;}
-    .z-bar{height:5px;background:rgba(255,255,255,0.07);border-radius:3px;overflow:hidden;}
-    .z-fill{height:100%;border-radius:3px;}
-    .z-pct{font-size:10px;color:var(--accent);font-weight:600;}
-    .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
-    .stat-mini{background:rgba(255,255,255,0.04);border-radius:7px;padding:10px 12px;}
-    .stat-mini .lbl{font-size:10px;color:var(--muted);margin-bottom:2px;}
-    .stat-mini .val{font-size:15px;font-weight:700;}
-    .info-table{width:100%;font-size:12px;border-collapse:collapse;}
-    .info-table tr{border-bottom:1px solid var(--border);}
-    .info-table tr:last-child{border-bottom:none;}
-    .info-table td{padding:7px 0;}
-    .info-table td:first-child{color:var(--muted);}
-    .info-table td:last-child{text-align:right;font-family:'Courier New',monospace;font-size:11px;color:var(--accent2);}
-    @keyframes fadeUp{from{opacity:0;transform:translateY(8px);}to{opacity:1;transform:translateY(0);}}
-    @media(max-width:768px){
-      #app{flex-direction:column;} #map{width:100%;height:100%;}
-      #sidebar{position:fixed;top:50px;left:0;height:calc(100% - 50px);width:300px;max-width:85vw;z-index:20;transform:translateX(-100%);box-shadow:4px 0 24px rgba(0,0,0,0.6);}
-      #sidebar.open{transform:translateX(0);} #overlay.open{display:block;}
-      #btn-menu{display:flex;} #btn-close-sidebar{display:block;}
-      .kpi-row{grid-template-columns:1fr 1fr;} .pipeline{grid-template-columns:1fr 1fr;}
-      .grid2,.grid2b{grid-template-columns:1fr;}
-    }
-  </style>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>DakarGeo v2</title>
+<link href="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.css" rel="stylesheet"/>
+<script src="https://unpkg.com/maplibre-gl@3.6.2/dist/maplibre-gl.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+:root{--bg:#0a1628;--s1:#111f35;--s2:#162840;--bd:#1e3a5f;--ac:#00e5a0;--ac2:#0088ff;--go:#ffb800;--tx:#e8f4ff;--mu:#5a7a99;--dg:#ff4060;--rd:10px;}
+html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--tx);overflow:hidden;}
+#root{display:flex;flex-direction:column;height:100vh;}
+/* TOPBAR */
+#topbar{height:52px;background:linear-gradient(90deg,#061020,#0d1f38);border-bottom:2px solid var(--go);display:flex;align-items:center;padding:0 16px;flex-shrink:0;}
+.brand{font-size:15px;font-weight:700;color:var(--tx);margin-right:24px;white-space:nowrap;}
+.brand span{color:var(--ac);}
+.tabs{display:flex;gap:4px;flex:1;}
+.tab{padding:6px 16px;background:transparent;border:1px solid transparent;border-radius:6px;color:var(--mu);font-size:12.5px;cursor:pointer;transition:all 0.15s;}
+.tab:hover{color:var(--tx);border-color:var(--bd);}
+.tab.active{background:rgba(0,229,160,0.1);color:var(--ac);border-color:rgba(0,229,160,0.3);}
+.tb-r{margin-left:auto;font-size:10px;color:var(--mu);display:flex;gap:8px;align-items:center;}
+.tb-badge{background:rgba(255,184,0,0.15);color:var(--go);border:1px solid rgba(255,184,0,0.3);padding:3px 9px;border-radius:4px;font-size:10px;font-weight:600;}
+/* VIEWS */
+.view{flex:1;overflow:hidden;display:none;}
+.view.active{display:flex;}
+/* ===== VUE CARTE ===== */
+#view-carte{flex-direction:row;position:relative;}
+#map{flex:1;height:100%;}
+#sidebar{width:300px;background:var(--s1);border-right:1px solid var(--bd);display:flex;flex-direction:column;overflow:hidden;flex-shrink:0;transition:transform 0.3s;z-index:10;}
+.sb-hdr{padding:14px;border-bottom:1px solid var(--bd);background:linear-gradient(135deg,var(--s2),var(--s1));}
+.sb-hdr h2{font-size:13.5px;font-weight:700;color:var(--ac);margin-bottom:2px;}
+.sb-hdr p{font-size:11px;color:var(--mu);}
+.sb-search{padding:10px 12px;border-bottom:1px solid var(--bd);}
+#search-input{width:100%;padding:8px 12px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--rd);color:var(--tx);font-size:13px;outline:none;transition:border-color 0.2s;}
+#search-input:focus{border-color:var(--ac);}
+#search-input::placeholder{color:var(--mu);}
+.sb-filters{padding:8px 12px;border-bottom:1px solid var(--bd);display:flex;flex-wrap:wrap;gap:5px;}
+.flt{padding:4px 9px;border-radius:20px;border:1px solid var(--bd);background:transparent;color:var(--mu);font-size:11px;cursor:pointer;transition:all 0.15s;}
+.flt:hover{border-color:var(--ac);color:var(--ac);}
+.flt.active{background:var(--ac);border-color:var(--ac);color:#000;font-weight:600;}
+#btn-proches{margin:10px 12px;padding:9px;background:var(--ac2);border:none;border-radius:var(--rd);color:#fff;font-size:12px;font-weight:600;cursor:pointer;transition:all 0.2s;display:flex;align-items:center;justify-content:center;gap:6px;}
+#btn-proches:hover:not(:disabled){background:#0070dd;transform:translateY(-1px);}
+#btn-proches:disabled{opacity:0.4;cursor:not-allowed;}
+#results{flex:1;overflow-y:auto;padding:4px 0;}
+#results::-webkit-scrollbar{width:3px;}
+#results::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px;}
+.r-item{padding:10px 14px;border-bottom:1px solid var(--bd);cursor:pointer;transition:background 0.12s;}
+.r-item:hover{background:rgba(0,229,160,0.05);}
+.r-name{font-size:13px;font-weight:600;margin-bottom:3px;}
+.r-meta{display:flex;align-items:center;gap:6px;margin-bottom:2px;}
+.r-type{font-size:10px;padding:2px 6px;border-radius:8px;font-weight:600;text-transform:uppercase;}
+.r-dist{font-size:11px;color:var(--ac2);font-weight:600;}
+.r-addr{font-size:11px;color:var(--mu);}
+.empty{padding:32px 14px;text-align:center;color:var(--mu);font-size:12px;line-height:1.6;}
+#sb-status{padding:7px 14px;font-size:11px;color:var(--mu);border-top:1px solid var(--bd);}
+.maplibregl-popup-content{background:var(--s2)!important;color:var(--tx)!important;border:1px solid var(--bd)!important;border-radius:var(--rd)!important;padding:14px 16px!important;min-width:200px;}
+.p-name{font-size:14px;font-weight:700;color:var(--ac);margin-bottom:6px;}
+.p-type{font-size:10px;padding:2px 7px;border-radius:8px;font-weight:600;text-transform:uppercase;display:inline-block;margin-bottom:6px;}
+.p-desc{font-size:12px;color:var(--mu);margin-bottom:4px;}
+.p-addr{font-size:11px;color:var(--mu);font-style:italic;}
+.p-dist{font-size:12px;color:var(--ac2);font-weight:600;margin-top:6px;}
+#btn-menu{display:none;position:absolute;top:10px;left:10px;z-index:20;background:var(--s1);border:1px solid var(--bd);border-radius:8px;color:var(--tx);font-size:18px;width:40px;height:40px;cursor:pointer;align-items:center;justify-content:center;}
+#overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:15;}
+/* ===== VUE PORTAIL ===== */
+#view-portail{flex-direction:row;overflow:hidden;}
+/* SIDEBAR PORTAIL */
+.p-sb{width:200px;background:#070f1c;border-right:1px solid var(--bd);flex-shrink:0;display:flex;flex-direction:column;overflow-y:auto;}
+.p-sb-sec{font-size:9px;text-transform:uppercase;letter-spacing:1.2px;color:rgba(255,255,255,0.25);padding:12px 14px 4px;}
+.p-sb-btn{display:flex;align-items:center;gap:8px;padding:9px 14px;font-size:12px;color:rgba(255,255,255,0.55);cursor:pointer;transition:all 0.12s;border-left:3px solid transparent;background:none;border-top:none;border-right:none;border-bottom:none;width:100%;text-align:left;}
+.p-sb-btn:hover{background:rgba(255,255,255,0.05);color:var(--tx);}
+.p-sb-btn.active{background:rgba(0,229,160,0.1);color:var(--ac);border-left-color:var(--go);}
+.p-sb-badge{margin-left:auto;background:var(--go);color:#000;font-size:9px;font-weight:700;padding:1px 6px;border-radius:7px;}
+.p-sb-div{height:1px;background:var(--bd);margin:6px 12px;}
+/* MAIN PORTAIL */
+.p-main{flex:1;overflow-y:auto;padding:16px 18px;}
+.p-main::-webkit-scrollbar{width:3px;}
+.p-main::-webkit-scrollbar-thumb{background:var(--bd);border-radius:3px;}
+/* PAGES PORTAIL */
+.p-page{display:none;}
+.p-page.active{display:block;}
+/* Header page */
+.p-hdr{margin-bottom:14px;display:flex;align-items:flex-start;justify-content:space-between;gap:12px;}
+.p-hdr h2{font-size:17px;font-weight:700;margin-bottom:3px;}
+.p-hdr p{font-size:11px;color:var(--mu);}
+.p-tag{font-size:10px;background:rgba(0,229,160,0.1);color:var(--ac);border:1px solid rgba(0,229,160,0.25);padding:4px 10px;border-radius:4px;white-space:nowrap;flex-shrink:0;}
+/* KPI */
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px;}
+.kpi{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:12px 14px;border-top:3px solid transparent;animation:fu 0.3s ease both;}
+.kpi:nth-child(1){border-top-color:var(--ac);animation-delay:0.05s;}
+.kpi:nth-child(2){border-top-color:var(--go);animation-delay:0.10s;}
+.kpi:nth-child(3){border-top-color:var(--ac2);animation-delay:0.15s;}
+.kpi:nth-child(4){border-top-color:var(--dg);animation-delay:0.20s;}
+.kpi-ic{font-size:16px;margin-bottom:5px;}
+.kpi-lb{font-size:9px;text-transform:uppercase;letter-spacing:0.8px;color:var(--mu);margin-bottom:3px;}
+.kpi-vl{font-size:20px;font-weight:700;line-height:1;margin-bottom:3px;}
+.kpi-sb{font-size:10px;color:var(--mu);}
+.kpi:nth-child(1) .kpi-vl{color:var(--ac);}
+.kpi:nth-child(2) .kpi-vl{color:var(--go);}
+.kpi:nth-child(3) .kpi-vl{color:var(--ac2);}
+.kpi:nth-child(4) .kpi-vl{color:var(--dg);}
+/* Pipeline */
+.sec-lbl{font-size:9px;text-transform:uppercase;letter-spacing:1px;color:var(--mu);margin-bottom:8px;}
+.pipeline{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;}
+.pipe{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:10px 12px;}
+.pipe-h{display:flex;align-items:center;gap:6px;margin-bottom:6px;}
+.pipe-n{width:18px;height:18px;border-radius:50%;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.pipe-nm{font-size:10px;color:var(--mu);}
+.pipe-v{font-size:17px;font-weight:700;margin-bottom:6px;}
+.pipe-bar{height:3px;background:rgba(255,255,255,0.07);border-radius:2px;overflow:hidden;}
+.pipe-fill{height:100%;border-radius:2px;}
+.pipe-pct{font-size:9px;color:var(--mu);margin-top:3px;}
+/* Cards */
+.g2{display:grid;grid-template-columns:3fr 2fr;gap:14px;margin-bottom:14px;}
+.g2b{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;}
+.g1{margin-bottom:14px;}
+.card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:14px;}
+.card-ttl{font-size:12.5px;font-weight:600;margin-bottom:2px;}
+.card-sub{font-size:10.5px;color:var(--mu);margin-bottom:12px;}
+/* Zone table */
+.ztbl{width:100%;border-collapse:collapse;font-size:11.5px;}
+.ztbl th{text-align:left;padding:4px 7px;font-size:9px;text-transform:uppercase;letter-spacing:0.7px;color:var(--mu);border-bottom:1px solid var(--bd);}
+.ztbl td{padding:7px 7px;border-bottom:1px solid var(--bd);}
+.ztbl tr:last-child td{border-bottom:none;}
+.ztbl tr:hover td{background:rgba(255,255,255,0.02);}
+.zdot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;}
+.zbar{height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden;width:80px;}
+.zfill{height:100%;border-radius:2px;}
+.zpct{font-size:10px;color:var(--ac);font-weight:600;}
+/* Stats mini */
+.sgrid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:14px;}
+.smini{background:rgba(255,255,255,0.03);border-radius:7px;padding:8px 10px;}
+.smini .lb{font-size:9.5px;color:var(--mu);margin-bottom:2px;}
+.smini .vl{font-size:14px;font-weight:700;}
+/* Info table */
+.itbl{width:100%;font-size:11.5px;border-collapse:collapse;}
+.itbl tr{border-bottom:1px solid var(--bd);}
+.itbl tr:last-child{border-bottom:none;}
+.itbl td{padding:6px 0;}
+.itbl td:first-child{color:var(--mu);}
+.itbl td:last-child{text-align:right;font-family:monospace;font-size:10.5px;color:var(--ac2);}
+/* Recherche portail */
+.search-box{display:flex;gap:8px;margin-bottom:14px;}
+.search-box input{flex:1;padding:9px 12px;background:var(--bg);border:1px solid var(--bd);border-radius:var(--rd);color:var(--tx);font-size:13px;outline:none;}
+.search-box input:focus{border-color:var(--ac);}
+.search-box input::placeholder{color:var(--mu);}
+.btn-search{padding:9px 16px;background:var(--ac);border:none;border-radius:var(--rd);color:#000;font-weight:600;font-size:12px;cursor:pointer;transition:all 0.15s;}
+.btn-search:hover{background:#00c888;}
+/* Results recherche */
+.search-result{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:12px 14px;margin-bottom:8px;animation:fu 0.2s ease;}
+.sr-num{font-size:11px;color:var(--mu);margin-bottom:3px;}
+.sr-zone{font-size:12px;font-weight:600;margin-bottom:2px;}
+.sr-stats{display:flex;gap:12px;font-size:11px;color:var(--mu);}
+.sr-val{color:var(--ac);font-weight:600;}
+/* Export buttons */
+.export-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px;}
+.btn-export{padding:12px;background:var(--s1);border:1px solid var(--bd);border-radius:8px;color:var(--tx);font-size:12px;cursor:pointer;transition:all 0.15s;text-align:left;display:flex;align-items:center;gap:10px;}
+.btn-export:hover{border-color:var(--ac);background:rgba(0,229,160,0.05);}
+.btn-export .ic{font-size:18px;}
+.btn-export .lb{font-size:12px;font-weight:600;}
+.btn-export .sb{font-size:10px;color:var(--mu);}
+/* Projections */
+.proj-card{background:var(--s1);border:1px solid var(--bd);border-radius:10px;padding:14px;margin-bottom:10px;}
+.proj-title{font-size:13px;font-weight:600;margin-bottom:8px;color:var(--go);}
+.proj-row{display:flex;justify-content:space-between;align-items:center;padding:5px 0;border-bottom:1px solid var(--bd);font-size:12px;}
+.proj-row:last-child{border-bottom:none;}
+.proj-val{font-weight:600;color:var(--ac);}
+/* Toast notification */
+#toast{position:fixed;bottom:20px;right:20px;background:var(--s2);border:1px solid var(--ac);border-radius:8px;padding:10px 16px;font-size:12px;color:var(--tx);z-index:999;transform:translateY(60px);opacity:0;transition:all 0.3s;}
+#toast.show{transform:translateY(0);opacity:1;}
+@keyframes fu{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:translateY(0);}}
+@media(max-width:768px){
+  #sidebar{position:fixed;top:52px;left:0;height:calc(100% - 52px);z-index:20;transform:translateX(-100%);}
+  #sidebar.open{transform:translateX(0);}
+  #overlay.open{display:block;}
+  #btn-menu{display:flex;}
+  .kpi-row,.pipeline{grid-template-columns:1fr 1fr;}
+  .g2,.g2b,.export-grid{grid-template-columns:1fr;}
+}
+</style>
 </head>
 <body>
 <div id="root">
+<div id="toast"></div>
 
-  <div id="topbar">
-    <div class="brand">&#x1F5FA; Dakar<span>G&eacute;o</span>Explorer</div>
-    <div class="tab-nav">
-      <button class="tab-btn active" onclick="switchView('carte',this)">&#x1F5FA; Carte &amp; Lieux</button>
-      <button class="tab-btn" onclick="switchView('portail',this)">&#x1F4CA; Portail B&acirc;timents</button>
-    </div>
-    <div class="topbar-right"><span>BTS G&eacute;omatique &middot; CEDT G15</span></div>
+<header id="topbar">
+  <div class="brand">&#x1F5FA; DakarGeo<span>v2</span> <span style="font-size:10px;color:var(--mu);margin-left:4px;">BTS G&#233;omatique</span></div>
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('carte',this)">&#x1F5FA; Carte &amp; Lieux</button>
+    <button class="tab" onclick="switchTab('portail',this)">&#x1F4CA; Portail B&#226;timents</button>
   </div>
-
-  <!-- VUE CARTE -->
-  <div id="view-carte" class="view active">
-    <div id="overlay"></div>
-    <button id="btn-menu" aria-label="Menu">&#9776;</button>
-    <div id="app">
-      <div id="sidebar">
-        <div id="sidebar-header">
-          <div><h1>&#x1F5FA; Dakar GeoExplorer</h1><p>Explore les lieux de Dakar &middot; PostGIS + MapLibre</p></div>
-          <button id="btn-close-sidebar" aria-label="Fermer">&#10005;</button>
-        </div>
-        <div id="search-box">
-          <input id="search-input" type="text" placeholder="Rechercher un lieu..." autocomplete="off" />
-        </div>
-        <div id="filters">
-          <button class="filter-btn active" data-type="">Tous</button>
-          <button class="filter-btn" data-type="h&#244;pital">&#x1F3E5; H&#244;pital</button>
-          <button class="filter-btn" data-type="&#233;cole">&#x1F393; &#201;cole</button>
-          <button class="filter-btn" data-type="march&#233;">&#x1F6D2; March&#233;</button>
-          <button class="filter-btn" data-type="mosqu&#233;e">&#x1F54C; Mosqu&#233;e</button>
-          <button class="filter-btn" data-type="pharmacie">&#x1F48A; Pharmacie</button>
-          <button class="filter-btn" data-type="culture">&#x1F3A8; Culture</button>
-        </div>
-        <button id="btn-proches" disabled>&#x1F4CD; Lieux proches de ma position</button>
-        <div id="results"><div class="empty-state">Chargement des donn&#233;es&hellip;</div></div>
-        <div id="status">&mdash; lieux charg&#233;s</div>
-      </div>
-      <div id="map"></div>
-    </div>
-    <div id="credit">Seydina Alioune Diop &middot; BTS G&#233;omatique &middot; CEDT G15</div>
+  <div class="tb-r">
+    <span class="tb-badge">766 423 B&#226;timents</span>
+    <span>Seydina Alioune Diop</span>
   </div>
+</header>
 
-  <!-- VUE PORTAIL -->
-  <div id="view-portail" class="view">
-    <aside class="p-sidebar">
-      <div class="p-sb-section">Navigation</div>
-      <div class="p-sb-item active">&#x1F3E0; Accueil</div>
-      <div class="p-sb-item">&#x1F3D7; B&#226;timents <span class="p-sb-badge">766K</span></div>
-      <div class="p-sb-item">&#x1F4D0; Surfaces</div>
-      <div class="p-sb-item">&#x1F5C2; Classes</div>
-      <div style="height:1px;background:var(--border);margin:8px 14px;"></div>
-      <div class="p-sb-section">Analyse</div>
-      <div class="p-sb-item">&#x1F4CD; Par zone</div>
-      <div class="p-sb-item">&#x1F4C9; Projections</div>
-      <div class="p-sb-item">&#x1F50D; Recherche</div>
-      <div style="height:1px;background:var(--border);margin:8px 14px;"></div>
-      <div class="p-sb-section">Export</div>
-      <div class="p-sb-item">&#x1F4C4; Rapport PDF</div>
-      <div class="p-sb-item">&#x1F4E6; Shapefile</div>
-      <div class="p-sb-item">&#x1F517; API GeoJSON</div>
-    </aside>
-    <main class="p-main">
-      <div class="p-header">
-        <div>
-          <h2>Tableau de Bord &mdash; B&#226;timents de Dakar</h2>
-          <p>Source : BATIMENTS_DAKAR.shp &middot; EPSG:32628 &rarr; WGS84 &middot; PostGIS / Neon PostGIS</p>
-        </div>
-        <span class="p-tag">MIS &Agrave; JOUR LE 11 AVR. 2026</span>
+<!-- ===== VUE CARTE ===== -->
+<div id="view-carte" class="view active">
+  <div id="overlay"></div>
+  <button id="btn-menu">&#9776;</button>
+  <div id="sidebar">
+    <div class="sb-hdr">
+      <h2>&#x1F5FA; Dakar GeoExplorer</h2>
+      <p>23 lieux d&#8217;int&#233;r&#234;t &#183; PostGIS KNN &#183; MapLibre GL</p>
+    </div>
+    <div class="sb-search">
+      <input id="search-input" type="text" placeholder="&#128269; Rechercher un lieu..." autocomplete="off"/>
+    </div>
+    <div class="sb-filters">
+      <button class="flt active" data-type="">Tous</button>
+      <button class="flt" data-type="h&#244;pital">&#x1F3E5; H&#244;pital</button>
+      <button class="flt" data-type="&#233;cole">&#x1F393; &#201;cole</button>
+      <button class="flt" data-type="march&#233;">&#x1F6D2; March&#233;</button>
+      <button class="flt" data-type="mosqu&#233;e">&#x1F54C; Mosqu&#233;e</button>
+      <button class="flt" data-type="pharmacie">&#x1F48A; Pharmacie</button>
+      <button class="flt" data-type="culture">&#x1F3A8; Culture</button>
+    </div>
+    <button id="btn-proches" disabled>&#x1F4CD; Lieux proches de moi</button>
+    <div id="results"><div class="empty">Chargement&#8230;</div></div>
+    <div id="sb-status">0 lieux</div>
+  </div>
+  <div id="map"></div>
+</div>
+
+<!-- ===== VUE PORTAIL ===== -->
+<div id="view-portail" class="view">
+  <aside class="p-sb">
+    <div class="p-sb-sec">Navigation</div>
+    <button class="p-sb-btn active" onclick="showPage('accueil',this)">&#x1F3E0; Accueil</button>
+    <button class="p-sb-btn" onclick="showPage('batiments',this)">&#x1F3D7; B&#226;timents <span class="p-sb-badge">766K</span></button>
+    <button class="p-sb-btn" onclick="showPage('surfaces',this)">&#x1F4D0; Surfaces</button>
+    <button class="p-sb-btn" onclick="showPage('classes',this)">&#x1F5C2; Classes</button>
+    <div class="p-sb-div"></div>
+    <div class="p-sb-sec">Analyse</div>
+    <button class="p-sb-btn" onclick="showPage('zones',this)">&#x1F4CD; Par zone</button>
+    <button class="p-sb-btn" onclick="showPage('projections',this)">&#x1F4C9; Projections</button>
+    <button class="p-sb-btn" onclick="showPage('recherche',this)">&#x1F50D; Recherche</button>
+    <div class="p-sb-div"></div>
+    <div class="p-sb-sec">Export</div>
+    <button class="p-sb-btn" onclick="showPage('export',this)">&#x1F4E6; Export &amp; API</button>
+  </aside>
+
+  <main class="p-main">
+
+    <!-- PAGE ACCUEIL -->
+    <div id="page-accueil" class="p-page active">
+      <div class="p-hdr">
+        <div><h2>Tableau de Bord &#8212; B&#226;timents de Dakar</h2><p>Source : BATIMENTS_DAKAR.shp &#183; EPSG:32628 &#8594; WGS84 &#183; Neon PostGIS</p></div>
+        <span class="p-tag">&#10003; 766 423 b&#226;timents import&#233;s</span>
       </div>
       <div class="kpi-row">
-        <div class="kpi-card"><div class="kpi-icon">&#x1F3D7;</div><div class="kpi-lbl">B&#226;timents identifi&#233;s</div><div class="kpi-val" id="kpi-total">766 423</div><div class="kpi-sub">Taux r&#233;alisation : 106.6%</div></div>
-        <div class="kpi-card"><div class="kpi-icon">&#x1F4D0;</div><div class="kpi-lbl">Surface totale</div><div class="kpi-val" id="kpi-surface">78.59 km&#178;</div><div class="kpi-sub">Emprise b&#226;tie totale</div></div>
-        <div class="kpi-card"><div class="kpi-icon">&#x1F4CA;</div><div class="kpi-lbl">Surface moyenne</div><div class="kpi-val" id="kpi-moy">102.5 m&#178;</div><div class="kpi-sub" id="kpi-med">M&#233;diane : 70.6 m&#178;</div></div>
-        <div class="kpi-card"><div class="kpi-icon">&#x1F5FA;</div><div class="kpi-lbl">Zones couvertes</div><div class="kpi-val" id="kpi-zones">6</div><div class="kpi-sub">Dakar &middot; Pikine &middot; Gu&#233;diawaye&hellip;</div></div>
+        <div class="kpi"><div class="kpi-ic">&#x1F3D7;</div><div class="kpi-lb">B&#226;timents</div><div class="kpi-vl" id="kpi-total">&#8212;</div><div class="kpi-sb">Taux : 106.6%</div></div>
+        <div class="kpi"><div class="kpi-ic">&#x1F4D0;</div><div class="kpi-lb">Surface totale</div><div class="kpi-vl" id="kpi-surf">&#8212;</div><div class="kpi-sb">Emprise b&#226;tie</div></div>
+        <div class="kpi"><div class="kpi-ic">&#x1F4CA;</div><div class="kpi-lb">Surface moyenne</div><div class="kpi-vl" id="kpi-moy">&#8212;</div><div class="kpi-sb" id="kpi-med">M&#233;diane : &#8212;</div></div>
+        <div class="kpi"><div class="kpi-ic">&#x1F5FA;</div><div class="kpi-lb">Zones</div><div class="kpi-vl" id="kpi-zones">6</div><div class="kpi-sb">R&#233;gion Dakar</div></div>
       </div>
-      <div class="p-section-lbl">&#9658; Pipeline de traitement des b&#226;timents</div>
+      <div class="sec-lbl">&#9658; Pipeline de traitement</div>
       <div class="pipeline">
-        <div class="pipe-step"><div class="pipe-hdr"><div class="pipe-num">1</div><span class="pipe-name">G&#233;om&#233;tries brutes</span></div><div class="pipe-val">766 423</div><div class="pipe-bar"><div class="pipe-fill" style="width:100%;background:var(--accent);"></div></div><div class="pipe-pct">100% &mdash; Source SHP</div></div>
-        <div class="pipe-step"><div class="pipe-hdr"><div class="pipe-num" style="background:var(--gold);color:#000;">2</div><span class="pipe-name">Surfaces calcul&#233;es</span></div><div class="pipe-val">766 423</div><div class="pipe-bar"><div class="pipe-fill" style="width:100%;background:var(--gold);"></div></div><div class="pipe-pct">100% &mdash; EPSG:32628</div></div>
-        <div class="pipe-step"><div class="pipe-hdr"><div class="pipe-num" style="background:var(--accent2);">3</div><span class="pipe-name">G&#233;or&#233;f&#233;renc&#233;s WGS84</span></div><div class="pipe-val">766 423</div><div class="pipe-bar"><div class="pipe-fill" style="width:100%;background:var(--accent2);"></div></div><div class="pipe-pct">100% &mdash; Reprojection OK</div></div>
-        <div class="pipe-step"><div class="pipe-hdr"><div class="pipe-num" style="background:var(--danger);">4</div><span class="pipe-name">Classifi&#233;s</span></div><div class="pipe-val">766 423</div><div class="pipe-bar"><div class="pipe-fill" style="width:100%;background:var(--danger);"></div></div><div class="pipe-pct">7 classes d&#233;finies</div></div>
+        <div class="pipe"><div class="pipe-h"><div class="pipe-n" style="background:var(--ac);color:#000;">1</div><span class="pipe-nm">G&#233;om&#233;tries</span></div><div class="pipe-v">766 423</div><div class="pipe-bar"><div class="pipe-fill" style="width:100%;background:var(--ac);"></div></div><div class="pipe-pct">100% &#8212; Source SHP</div></div>
+        <div class="pipe"><div class="pipe-h"><div class="pipe-n" style="background:var(--go);color:#000;">2</div><span class="pipe-nm">Surfaces</span></div><div class="pipe-v">766 423</div><div class="pipe-bar"><div class="pipe-fill" style="width:100%;background:var(--go);"></div></div><div class="pipe-pct">100% &#8212; UTM28N</div></div>
+        <div class="pipe"><div class="pipe-h"><div class="pipe-n" style="background:var(--ac2);">3</div><span class="pipe-nm">WGS84</span></div><div class="pipe-v">766 423</div><div class="pipe-bar"><div class="pipe-fill" style="width:100%;background:var(--ac2);"></div></div><div class="pipe-pct">100% &#8212; Reprojection</div></div>
+        <div class="pipe"><div class="pipe-h"><div class="pipe-n" style="background:var(--dg);">4</div><span class="pipe-nm">Classifi&#233;s</span></div><div class="pipe-v">766 423</div><div class="pipe-bar"><div class="pipe-fill" style="width:100%;background:var(--dg);"></div></div><div class="pipe-pct">7 classes d&#233;finies</div></div>
       </div>
-      <div class="grid2">
-        <div class="p-card">
-          <div class="p-card-ttl">Distribution par classe de surface</div>
-          <div class="p-card-sub">Nombre de b&#226;timents par tranche de superficie &mdash; donn&#233;es r&#233;elles</div>
-          <div style="position:relative;height:230px;"><canvas id="chartClasses" role="img" aria-label="Distribution des batiments par classe de surface"></canvas></div>
-        </div>
-        <div class="p-card">
-          <div class="p-card-ttl">R&#233;partition par zone</div>
-          <div class="p-card-sub">Part de chaque zone g&#233;ographique</div>
-          <div style="display:flex;align-items:center;gap:12px;">
-            <div style="position:relative;height:180px;width:180px;flex-shrink:0;"><canvas id="chartZones" role="img" aria-label="Repartition par zone"></canvas></div>
-            <div id="zones-legend" style="flex:1;font-size:11.5px;"></div>
-          </div>
-        </div>
+      <div class="g2">
+        <div class="card"><div class="card-ttl">Distribution par classe de surface</div><div class="card-sub">Nombre de b&#226;timents par tranche (m&#178;)</div><div style="position:relative;height:200px;"><canvas id="chartC"></canvas></div></div>
+        <div class="card"><div class="card-ttl">R&#233;partition par zone</div><div class="card-sub">Part de chaque zone g&#233;ographique</div><div style="display:flex;align-items:center;gap:10px;"><div style="position:relative;height:160px;width:160px;flex-shrink:0;"><canvas id="chartZ"></canvas></div><div id="zlegend" style="flex:1;font-size:11px;"></div></div></div>
       </div>
-      <div class="grid2b">
-        <div class="p-card">
-          <div class="p-card-ttl">D&#233;tail par zone g&#233;ographique</div>
-          <div class="p-card-sub">B&#226;timents identifi&#233;s &middot; Surface moyenne</div>
-          <table class="zone-table"><thead><tr><th>Zone</th><th>B&#226;timents</th><th>%</th><th class="z-bar-cell"></th></tr></thead><tbody id="zones-tbody"><tr><td colspan="4" style="color:var(--muted);font-size:11px;padding:8px;">Chargement&hellip;</td></tr></tbody></table>
+    </div>
+
+    <!-- PAGE BATIMENTS -->
+    <div id="page-batiments" class="p-page">
+      <div class="p-hdr"><div><h2>&#x1F3D7; B&#226;timents identifi&#233;s</h2><p>Vue d&#233;taill&#233;e des 766 423 b&#226;timents import&#233;s</p></div></div>
+      <div class="g2b">
+        <div class="card">
+          <div class="card-ttl">R&#233;capitulatif</div><div class="card-sub">Donn&#233;es issues du shapefile BATIMENTS_DAKAR</div>
+          <table class="itbl">
+            <tr><td>Total b&#226;timents</td><td style="color:var(--ac);font-weight:700;" id="b-total">&#8212;</td></tr>
+            <tr><td>Surface totale</td><td id="b-surf">&#8212;</td></tr>
+            <tr><td>Surface min</td><td id="b-min">&#8212;</td></tr>
+            <tr><td>Surface max</td><td id="b-max">&#8212;</td></tr>
+            <tr><td>Surface moyenne</td><td id="b-moy">&#8212;</td></tr>
+            <tr><td>Surface m&#233;diane</td><td id="b-med">&#8212;</td></tr>
+            <tr><td>Nombre de zones</td><td>6</td></tr>
+            <tr><td>Nombre de classes</td><td>7</td></tr>
+          </table>
         </div>
-        <div class="p-card">
-          <div class="p-card-ttl">Statistiques de surface</div>
-          <div class="p-card-sub">M&#233;triques calcul&#233;es depuis la g&#233;om&#233;trie r&#233;elle</div>
-          <div class="stat-grid" style="margin-bottom:16px;">
-            <div class="stat-mini"><div class="lbl">Surface min</div><div class="val" style="color:var(--danger);" id="s-min">2.5 m&#178;</div></div>
-            <div class="stat-mini"><div class="lbl">Surface max</div><div class="val" style="color:var(--accent2);" id="s-max">42 732 m&#178;</div></div>
-            <div class="stat-mini"><div class="lbl">Moyenne</div><div class="val" style="color:var(--accent);" id="s-moy">102.5 m&#178;</div></div>
-            <div class="stat-mini"><div class="lbl">M&#233;diane</div><div class="val" style="color:var(--gold);" id="s-med">70.6 m&#178;</div></div>
-          </div>
-          <div class="p-card-ttl" style="margin-bottom:10px;">Infos techniques</div>
-          <table class="info-table">
+        <div class="card">
+          <div class="card-ttl">Informations techniques</div><div class="card-sub">Caract&#233;ristiques du fichier source</div>
+          <table class="itbl">
             <tr><td>Format source</td><td>.shp (ESRI Shapefile)</td></tr>
             <tr><td>Projection source</td><td>EPSG:32628 UTM28N</td></tr>
             <tr><td>Projection affichage</td><td>EPSG:4326 WGS84</td></tr>
-            <tr><td>Type g&#233;om&#233;trie</td><td>Polygon</td></tr>
-            <tr><td>Backend</td><td>Node.js + PostGIS</td></tr>
-            <tr><td>Total b&#226;timents</td><td style="color:var(--accent);font-weight:700;">766 423</td></tr>
+            <tr><td>Type g&#233;om&#233;trie</td><td>MultiPolygon</td></tr>
+            <tr><td>Base de donn&#233;es</td><td>Neon PostGIS</td></tr>
+            <tr><td>Backend</td><td>Node.js + Express</td></tr>
+            <tr><td>Frontend</td><td>MapLibre GL + Chart.js</td></tr>
+            <tr><td>H&#233;bergement</td><td>Render + Vercel</td></tr>
           </table>
         </div>
       </div>
-    </main>
-  </div>
+      <div class="card g1"><div class="card-ttl">D&#233;tail par zone g&#233;ographique</div><div class="card-sub">Nombre de b&#226;timents et surface moyenne par zone</div>
+        <table class="ztbl"><thead><tr><th>Zone</th><th>B&#226;timents</th><th>%</th><th>Surface moy.</th><th></th></tr></thead><tbody id="bat-zones-tbody"></tbody></table>
+      </div>
+    </div>
+
+    <!-- PAGE SURFACES -->
+    <div id="page-surfaces" class="p-page">
+      <div class="p-hdr"><div><h2>&#x1F4D0; Analyse des surfaces</h2><p>Distribution et statistiques des surfaces b&#226;ties</p></div></div>
+      <div class="kpi-row">
+        <div class="kpi"><div class="kpi-ic">&#x2B07;</div><div class="kpi-lb">Surface min</div><div class="kpi-vl" id="surf-min">&#8212;</div><div class="kpi-sb">Plus petit b&#226;timent</div></div>
+        <div class="kpi"><div class="kpi-ic">&#x2B06;</div><div class="kpi-lb">Surface max</div><div class="kpi-vl" id="surf-max">&#8212;</div><div class="kpi-sb">Plus grand b&#226;timent</div></div>
+        <div class="kpi"><div class="kpi-ic">&#x1F4CF;</div><div class="kpi-lb">Moyenne</div><div class="kpi-vl" id="surf-moy">&#8212;</div><div class="kpi-sb">Surface moyenne</div></div>
+        <div class="kpi"><div class="kpi-ic">&#x1F4C8;</div><div class="kpi-lb">M&#233;diane</div><div class="kpi-vl" id="surf-med">&#8212;</div><div class="kpi-sb">Valeur centrale</div></div>
+      </div>
+      <div class="card g1"><div class="card-ttl">Distribution par classe de surface</div><div class="card-sub">Nombre de b&#226;timents par tranche de superficie</div><div style="position:relative;height:250px;"><canvas id="chartSurf"></canvas></div></div>
+      <div class="card g1"><div class="card-ttl">Interpr&#233;tation</div><div class="card-sub">Analyse de la distribution des surfaces</div>
+        <p style="font-size:12.5px;color:var(--mu);line-height:1.7;">La majorit&#233; des b&#226;timents (216 187 soit 28.2%) ont une surface entre 100 et 200 m&#178;, ce qui correspond &#224; une habitation individuelle standard. Les tr&#232;s petits b&#226;timents (&lt;25 m&#178;) repr&#233;sentent 20.1% du parc, probablement des annexes ou kiosques. Les grands b&#226;timents (&gt;500 m&#178;) ne repr&#233;sentent que 0.96% mais couvrent une surface importante.</p>
+      </div>
+    </div>
+
+    <!-- PAGE CLASSES -->
+    <div id="page-classes" class="p-page">
+      <div class="p-hdr"><div><h2>&#x1F5C2; Classes de b&#226;timents</h2><p>Classement par taille de surface</p></div></div>
+      <div id="classes-list"></div>
+    </div>
+
+    <!-- PAGE ZONES -->
+    <div id="page-zones" class="p-page">
+      <div class="p-hdr"><div><h2>&#x1F4CD; Analyse par zone</h2><p>R&#233;partition g&#233;ographique des b&#226;timents sur 6 zones</p></div></div>
+      <div class="card g1"><div class="card-ttl">R&#233;partition d&#233;taill&#233;e</div><div class="card-sub">B&#226;timents &#183; Surface moyenne &#183; Part du total</div>
+        <table class="ztbl"><thead><tr><th>Zone</th><th>B&#226;timents</th><th>%</th><th>Surf. moy.</th><th></th></tr></thead><tbody id="zones-detail-tbody"></tbody></table>
+      </div>
+      <div class="g2b">
+        <div class="card"><div class="card-ttl">Donut zones</div><div class="card-sub">Part relative de chaque zone</div><div style="position:relative;height:200px;"><canvas id="chartZones2"></canvas></div></div>
+        <div class="card"><div class="card-ttl">Barres comparatives</div><div class="card-sub">Volume absolu de b&#226;timents</div><div style="position:relative;height:200px;"><canvas id="chartZonesBar"></canvas></div></div>
+      </div>
+    </div>
+
+    <!-- PAGE PROJECTIONS -->
+    <div id="page-projections" class="p-page">
+      <div class="p-hdr"><div><h2>&#x1F4C9; Projections &amp; Tendances</h2><p>Estimations et analyses prospectives du parc immobilier</p></div></div>
+      <div class="proj-card"><div class="proj-title">&#x1F3D7; Croissance urbaine estim&#233;e</div>
+        <div class="proj-row"><span>B&#226;timents actuels (2026)</span><span class="proj-val">766 423</span></div>
+        <div class="proj-row"><span>Projection 2027 (+4%)</span><span class="proj-val">797 080</span></div>
+        <div class="proj-row"><span>Projection 2028 (+4%)</span><span class="proj-val">828 963</span></div>
+        <div class="proj-row"><span>Projection 2030 (+4%/an)</span><span class="proj-val">896 190</span></div>
+      </div>
+      <div class="proj-card"><div class="proj-title">&#x1F4D0; Surface b&#226;tie</div>
+        <div class="proj-row"><span>Surface actuelle</span><span class="proj-val">78.59 km&#178;</span></div>
+        <div class="proj-row"><span>Densit&#233; moyenne</span><span class="proj-val">102.5 m&#178;/b&#226;t.</span></div>
+        <div class="proj-row"><span>Zone la plus dense</span><span class="proj-val">Pikine (154 491)</span></div>
+        <div class="proj-row"><span>Zone moins dense</span><span class="proj-val">Plateau/M&#233;dina (108 446)</span></div>
+      </div>
+      <div class="proj-card"><div class="proj-title">&#x1F4CA; Distribution future estim&#233;e</div>
+        <div class="proj-row"><span>B&#226;timents &lt; 100 m&#178;</span><span class="proj-val">62.4% &#8594; stable</span></div>
+        <div class="proj-row"><span>B&#226;timents 100&#8211;200 m&#178;</span><span class="proj-val">28.2% &#8594; hausse</span></div>
+        <div class="proj-row"><span>B&#226;timents &gt; 500 m&#178;</span><span class="proj-val">0.96% &#8594; hausse (+industries)</span></div>
+      </div>
+    </div>
+
+    <!-- PAGE RECHERCHE -->
+    <div id="page-recherche" class="p-page">
+      <div class="p-hdr"><div><h2>&#x1F50D; Recherche par zone</h2><p>Interroger les statistiques par zone g&#233;ographique</p></div></div>
+      <div class="search-box">
+        <input id="zone-search" type="text" placeholder="Ex: Pikine, Dakar, Guediawaye..."/>
+        <button class="btn-search" onclick="rechercherZone()">Rechercher</button>
+      </div>
+      <div id="search-results"></div>
+      <div class="card" style="margin-top:14px;">
+        <div class="card-ttl">Zones disponibles</div><div class="card-sub">Cliquez sur une zone pour voir ses statistiques</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;" id="zone-chips"></div>
+      </div>
+    </div>
+
+    <!-- PAGE EXPORT -->
+    <div id="page-export" class="p-page">
+      <div class="p-hdr"><div><h2>&#x1F4E6; Export &amp; API</h2><p>T&#233;l&#233;charger les donn&#233;es ou acc&#233;der via l&#8217;API REST</p></div></div>
+      <div class="export-grid">
+        <button class="btn-export" onclick="exportCSV()"><span class="ic">&#x1F4CA;</span><div><div class="lb">Export CSV</div><div class="sb">Statistiques par zone</div></div></button>
+        <button class="btn-export" onclick="exportJSON()"><span class="ic">&#x1F4BE;</span><div><div class="lb">Export JSON</div><div class="sb">Toutes les stats</div></div></button>
+        <button class="btn-export" onclick="window.open(API+'/batiments/geojson?limit=500')"><span class="ic">&#x1F30D;</span><div><div class="lb">GeoJSON b&#226;timents</div><div class="sb">500 polygones</div></div></button>
+        <button class="btn-export" onclick="window.open(API+'/lieux')"><span class="ic">&#x1F4CD;</span><div><div class="lb">GeoJSON lieux</div><div class="sb">23 lieux d&#8217;int&#233;r&#234;t</div></div></button>
+      </div>
+      <div class="card"><div class="card-ttl">Endpoints API REST</div><div class="card-sub">Base URL : <span style="color:var(--ac2);font-family:monospace;" id="api-url-display"></span></div>
+        <table class="itbl">
+          <tr><td>Health check</td><td>/api/health</td></tr>
+          <tr><td>Tous les lieux</td><td>/api/lieux</td></tr>
+          <tr><td>Lieux par type</td><td>/api/lieux?type=h&#244;pital</td></tr>
+          <tr><td>Recherche texte</td><td>/api/lieux/search?q=sandaga</td></tr>
+          <tr><td>Lieux proches</td><td>/api/lieux/proches?lng=X&amp;lat=Y</td></tr>
+          <tr><td>Dashboard b&#226;timents</td><td>/api/batiments/dashboard</td></tr>
+          <tr><td>Stats zones</td><td>/api/batiments/zones</td></tr>
+          <tr><td>Stats classes</td><td>/api/batiments/classes</td></tr>
+          <tr><td>GeoJSON b&#226;timents</td><td>/api/batiments/geojson?zone=Pikine</td></tr>
+        </table>
+      </div>
+    </div>
+
+  </main>
+</div>
 </div>
 
 <script>
-const API_BASE = 'https://dakargeo-v2.onrender.com/api';
-const TYPE_COLORS={'h\u00f4pital':'#ff4f6a','\u00e9cole':'#0094ff','march\u00e9':'#ffab00','mosqu\u00e9e':'#00c896','pharmacie':'#bd5fff','culture':'#ff7a00'};
-const TYPE_ICONS={'h\u00f4pital':'🏥','\u00e9cole':'🎓','march\u00e9':'🛒','mosqu\u00e9e':'🕌','pharmacie':'💊','culture':'🎨'};
-const ZONE_COLORS=['#3a88c8','#8860c0','#e0a03a','#e05a3a','#60a860','#e07a3a'];
+const API = 'https://dakargeo-v2.onrender.com/api';
+document.getElementById('api-url-display').textContent = API;
 
-let currentType='',userLng=null,userLat=null,activePopup=null,allFeatures=[];
-let portailLoaded=false,chartClasses=null,chartZones=null;
+const ZONE_COLORS = ['#00e5a0','#0088ff','#ffb800','#ff4060','#bd5fff','#ff7a00'];
+const TYPE_COLORS = {'h\u00f4pital':'#ff4060','\u00e9cole':'#0088ff','march\u00e9':'#ffb800','mosqu\u00e9e':'#00e5a0','pharmacie':'#bd5fff','culture':'#ff7a00'};
+const TYPE_ICONS  = {'h\u00f4pital':'\u{1F3E5}','\u00e9cole':'\u{1F393}','march\u00e9':'\u{1F6D2}','mosqu\u00e9e':'\u{1F54C}','pharmacie':'\u{1F48A}','culture':'\u{1F3A8}'};
 
-function switchView(view,btn){
-  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
-  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
-  document.getElementById('view-'+view).classList.add('active');
-  btn.classList.add('active');
-  if(view==='portail'&&!portailLoaded) loadPortail();
+let chartC=null,chartZ=null,chartSurf=null,chartZ2=null,chartZB=null;
+let dashData = null;
+
+function toast(msg, dur=2500) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), dur);
 }
 
-const sidebar=document.getElementById('sidebar'),overlay=document.getElementById('overlay');
-const btnMenu=document.getElementById('btn-menu'),btnClose=document.getElementById('btn-close-sidebar');
-function openSidebar(){sidebar.classList.add('open');overlay.classList.add('open');}
-function closeSidebar(){sidebar.classList.remove('open');overlay.classList.remove('open');}
-function closeSidebarOnMobile(){if(window.innerWidth<=768)closeSidebar();}
-btnMenu.addEventListener('click',openSidebar);
-btnClose.addEventListener('click',closeSidebar);
-overlay.addEventListener('click',closeSidebar);
+// ── ONGLETS PRINCIPAUX ──
+function switchTab(view, btn) {
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(b => b.classList.remove('active'));
+  document.getElementById('view-' + view).classList.add('active');
+  btn.classList.add('active');
+  if (view === 'portail' && !dashData) loadDashboard();
+}
 
-const map=new maplibregl.Map({
-  container:'map',
-  style:{version:8,sources:{osm:{type:'raster',tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],tileSize:256,attribution:'\u00a9 OpenStreetMap contributors'}},layers:[{id:'osm-tiles',type:'raster',source:'osm'}]},
-  center:[-17.4677,14.7167],zoom:12,minZoom:10,maxZoom:18,
+// ── SIDEBAR PORTAIL ──
+function showPage(page, btn) {
+  document.querySelectorAll('.p-page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.p-sb-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('page-' + page).classList.add('active');
+  btn.classList.add('active');
+  if (!dashData) loadDashboard();
+}
+
+// ── CARTE ──
+const overlay = document.getElementById('overlay');
+const sidebar = document.getElementById('sidebar');
+document.getElementById('btn-menu').addEventListener('click', () => {
+  sidebar.classList.add('open'); overlay.classList.add('open');
 });
-map.addControl(new maplibregl.NavigationControl(),'top-right');
+overlay.addEventListener('click', () => {
+  sidebar.classList.remove('open'); overlay.classList.remove('open');
+});
 
-let markers=[];
-function clearMarkers(){markers.forEach(m=>m.remove());markers=[];}
-function createMarkerElement(f){
-  const t=f.properties.type||'culture',c=TYPE_COLORS[t]||'#fff',ic=TYPE_ICONS[t]||'📍';
-  const el=document.createElement('div');
-  el.style.cssText=`width:32px;height:32px;border-radius:50%;background:${c}22;border:2px solid ${c};display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;transition:transform 0.15s;`;
-  el.textContent=ic;el.title=f.properties.nom;
-  el.addEventListener('mouseenter',()=>{el.style.transform='scale(1.25)';});
-  el.addEventListener('mouseleave',()=>{el.style.transform='scale(1)';});
+const map = new maplibregl.Map({
+  container: 'map',
+  style: { version:8, sources:{ osm:{ type:'raster', tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'], tileSize:256, attribution:'\u00a9 OpenStreetMap' }}, layers:[{ id:'osm', type:'raster', source:'osm' }] },
+  center: [-17.4677, 14.7167], zoom: 12, minZoom: 9, maxZoom: 18,
+});
+map.addControl(new maplibregl.NavigationControl(), 'top-right');
+
+let markers=[], activePopup=null, currentType='';
+
+function clearMarkers() { markers.forEach(m => m.remove()); markers=[]; }
+
+function mkMarker(f) {
+  const t = f.properties.type || 'culture';
+  const c = TYPE_COLORS[t] || '#fff';
+  const ic = TYPE_ICONS[t] || '\u{1F4CD}';
+  const el = document.createElement('div');
+  el.style.cssText = `width:34px;height:34px;border-radius:50%;background:${c}22;border:2px solid ${c};display:flex;align-items:center;justify-content:center;font-size:16px;cursor:pointer;transition:transform 0.15s;box-shadow:0 2px 10px ${c}44;`;
+  el.textContent = ic;
+  el.addEventListener('mouseenter', () => el.style.transform='scale(1.2)');
+  el.addEventListener('mouseleave', () => el.style.transform='scale(1)');
   return el;
 }
-function showPopup(f,ll){
-  if(activePopup)activePopup.remove();
-  const p=f.properties,dist=p.distance_m?`<div class="popup-dist">📏 ${p.distance_m} m</div>`:'',ic=TYPE_ICONS[p.type]||'📍';
-  activePopup=new maplibregl.Popup({offset:20,closeButton:true,maxWidth:'280px'})
-    .setLngLat(ll).setHTML(`<div class="popup-nom">${ic} ${p.nom}</div><div class="result-type type-${p.type}" style="display:inline-block;margin-bottom:6px">${p.type}</div><div class="popup-desc">${p.description||''}</div><div class="popup-addr">${p.adresse||''}</div>${dist}`).addTo(map);
+
+function showPopup(f, ll) {
+  if (activePopup) activePopup.remove();
+  const p = f.properties;
+  const ic = TYPE_ICONS[p.type] || '\u{1F4CD}';
+  const c  = TYPE_COLORS[p.type] || '#fff';
+  const dist = p.distance_m ? `<div class="p-dist">\u{1F4CF} ${p.distance_m} m</div>` : '';
+  activePopup = new maplibregl.Popup({ offset:20, closeButton:true, maxWidth:'260px' })
+    .setLngLat(ll)
+    .setHTML(`<div class="p-name">${ic} ${p.nom}</div><span class="p-type" style="background:${c}22;color:${c};">${p.type}</span><div class="p-desc">${p.description||''}</div><div class="p-addr">${p.adresse||''}</div>${dist}`)
+    .addTo(map);
 }
-function addMarkersToMap(gj){
-  clearMarkers();allFeatures=gj.features;
-  gj.features.forEach(f=>{
-    const[lng,lat]=f.geometry.coordinates,el=createMarkerElement(f);
-    const m=new maplibregl.Marker({element:el}).setLngLat([lng,lat]).addTo(map);
-    el.addEventListener('click',()=>showPopup(f,[lng,lat]));markers.push(m);
-  });
-}
-function renderList(features){
-  const re=document.getElementById('results'),st=document.getElementById('status');
-  st.textContent=`${features.length} lieu${features.length>1?'x':''} affich\u00e9${features.length>1?'s':''}`;
-  if(!features.length){re.innerHTML='<div class="empty-state">Aucun lieu trouv\u00e9</div>';return;}
-  re.innerHTML=features.map(f=>{
-    const p=f.properties,dist=p.distance_m?`<span class="result-dist">📏 ${p.distance_m} m</span>`:'';
-    return `<div class="result-item" data-lng="${f.geometry.coordinates[0]}" data-lat="${f.geometry.coordinates[1]}"><div class="result-nom">${p.nom}</div><div class="result-meta"><span class="result-type type-${p.type}">${p.type}</span>${dist}</div><div class="result-addr">${p.adresse||''}</div></div>`;
+
+function renderList(features) {
+  const re = document.getElementById('results');
+  const st = document.getElementById('sb-status');
+  st.textContent = `${features.length} lieu${features.length>1?'x':''} affich\u00e9${features.length>1?'s':''}`;
+  if (!features.length) { re.innerHTML='<div class="empty">Aucun r\u00e9sultat</div>'; return; }
+  re.innerHTML = features.map(f => {
+    const p = f.properties;
+    const c = TYPE_COLORS[p.type]||'#fff';
+    const dist = p.distance_m ? `<span class="r-dist">\u{1F4CF} ${p.distance_m}m</span>` : '';
+    return `<div class="r-item" data-lng="${f.geometry.coordinates[0]}" data-lat="${f.geometry.coordinates[1]}">
+      <div class="r-name">${p.nom}</div>
+      <div class="r-meta"><span class="r-type" style="background:${c}22;color:${c};">${p.type}</span>${dist}</div>
+      <div class="r-addr">${p.adresse||''}</div>
+    </div>`;
   }).join('');
-  re.querySelectorAll('.result-item').forEach((el,i)=>{
-    el.addEventListener('click',()=>{
-      const lng=parseFloat(el.dataset.lng),lat=parseFloat(el.dataset.lat);
-      map.flyTo({center:[lng,lat],zoom:15,duration:800});showPopup(features[i],[lng,lat]);closeSidebarOnMobile();
+  re.querySelectorAll('.r-item').forEach((el,i) => {
+    el.addEventListener('click', () => {
+      const lng=parseFloat(el.dataset.lng), lat=parseFloat(el.dataset.lat);
+      map.flyTo({ center:[lng,lat], zoom:15, duration:800 });
+      showPopup(features[i],[lng,lat]);
+      sidebar.classList.remove('open'); overlay.classList.remove('open');
     });
   });
 }
-async function loadLieux(type=''){
-  try{
-    const res=await fetch(type?`${API_BASE}/lieux?type=${encodeURIComponent(type)}`:`${API_BASE}/lieux`);
-    const data=await res.json();
-    addMarkersToMap(data);renderList(data.features);
-    if(data.features.length>0){
-      const lngs=data.features.map(f=>f.geometry.coordinates[0]),lats=data.features.map(f=>f.geometry.coordinates[1]);
+
+function addMarkers(gj) {
+  clearMarkers();
+  gj.features.forEach(f => {
+    const [lng,lat] = f.geometry.coordinates;
+    const el = mkMarker(f);
+    const m = new maplibregl.Marker({ element:el }).setLngLat([lng,lat]).addTo(map);
+    el.addEventListener('click', () => showPopup(f,[lng,lat]));
+    markers.push(m);
+  });
+}
+
+async function loadLieux(type='') {
+  document.getElementById('results').innerHTML='<div class="empty">Chargement\u2026</div>';
+  try {
+    const url = type ? `${API}/lieux?type=${encodeURIComponent(type)}` : `${API}/lieux`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error('HTTP '+res.status);
+    const data = await res.json();
+    addMarkers(data); renderList(data.features);
+    if (data.features.length) {
+      const lngs=data.features.map(f=>f.geometry.coordinates[0]);
+      const lats=data.features.map(f=>f.geometry.coordinates[1]);
       map.fitBounds([[Math.min(...lngs),Math.min(...lats)],[Math.max(...lngs),Math.max(...lats)]],{padding:60,maxZoom:14});
     }
-  }catch(e){document.getElementById('results').innerHTML='<div class="empty-state">&#10060; Impossible de charger les donn\u00e9es.</div>';}
+  } catch(e) {
+    document.getElementById('results').innerHTML='<div class="empty">\u274C Erreur de chargement.<br><small>V\u00e9rifiez que le backend est actif.</small></div>';
+  }
 }
-let searchTimeout=null;
-document.getElementById('search-input').addEventListener('input',function(){
-  clearTimeout(searchTimeout);const q=this.value.trim();
-  if(q.length<2){if(!q.length)loadLieux(currentType);return;}
-  searchTimeout=setTimeout(async()=>{
-    try{const res=await fetch(`${API_BASE}/lieux/search?q=${encodeURIComponent(q)}`);const data=await res.json();addMarkersToMap(data);renderList(data.features);}catch(e){}
-  },400);
-});
-document.querySelectorAll('.filter-btn').forEach(btn=>{
-  btn.addEventListener('click',function(){
-    document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
-    this.classList.add('active');currentType=this.dataset.type;
-    document.getElementById('search-input').value='';loadLieux(currentType);
+
+// Filtres
+document.querySelectorAll('.flt').forEach(btn => {
+  btn.addEventListener('click', function() {
+    document.querySelectorAll('.flt').forEach(b => b.classList.remove('active'));
+    this.classList.add('active');
+    currentType = this.dataset.type;
+    document.getElementById('search-input').value='';
+    loadLieux(currentType);
   });
 });
-const btnProches=document.getElementById('btn-proches');
-if('geolocation'in navigator){
-  navigator.geolocation.getCurrentPosition(pos=>{
-    userLng=pos.coords.longitude;userLat=pos.coords.latitude;
-    btnProches.disabled=false;btnProches.textContent='📍 Lieux proches de moi';
-    const uel=document.createElement('div');
-    uel.style.cssText='width:16px;height:16px;border-radius:50%;background:#0094ff;border:3px solid #fff;box-shadow:0 0 0 3px #0094ff55;';
-    new maplibregl.Marker({element:uel}).setLngLat([userLng,userLat]).addTo(map);
-  },()=>{btnProches.textContent='📍 Position non disponible';});
-}
-btnProches.addEventListener('click',async()=>{
-  if(!userLng||!userLat)return;
-  try{
-    const tp=currentType?`&type=${encodeURIComponent(currentType)}`:'';
-    const res=await fetch(`${API_BASE}/lieux/proches?lng=${userLng}&lat=${userLat}&limit=8${tp}`);
-    const data=await res.json();addMarkersToMap(data);renderList(data.features);
-    map.flyTo({center:[userLng,userLat],zoom:14,duration:1000});closeSidebarOnMobile();
-  }catch(e){}
-});
-map.on('load',()=>{loadLieux();});
 
-/* ── PORTAIL ── */
-const FALLBACK={
+// Recherche
+let st;
+document.getElementById('search-input').addEventListener('input', function() {
+  clearTimeout(st);
+  const q = this.value.trim();
+  if (!q) { loadLieux(currentType); return; }
+  if (q.length < 2) return;
+  st = setTimeout(async () => {
+    try {
+      const res = await fetch(`${API}/lieux/search?q=${encodeURIComponent(q)}`);
+      const data = await res.json();
+      addMarkers(data); renderList(data.features);
+    } catch(e) {}
+  }, 350);
+});
+
+// Géolocalisation
+const btnP = document.getElementById('btn-proches');
+let userPos = null;
+if ('geolocation' in navigator) {
+  navigator.geolocation.getCurrentPosition(pos => {
+    userPos = [pos.coords.longitude, pos.coords.latitude];
+    btnP.disabled = false;
+    const uel = document.createElement('div');
+    uel.style.cssText='width:14px;height:14px;border-radius:50%;background:#0088ff;border:3px solid #fff;box-shadow:0 0 0 4px rgba(0,136,255,0.3);';
+    new maplibregl.Marker({element:uel}).setLngLat(userPos).addTo(map);
+  }, () => { btnP.textContent='\u{1F4CD} Position non disponible'; });
+}
+btnP.addEventListener('click', async () => {
+  if (!userPos) return;
+  btnP.textContent='\u23F3 Recherche\u2026'; btnP.disabled=true;
+  try {
+    const tp = currentType ? `&type=${encodeURIComponent(currentType)}` : '';
+    const res = await fetch(`${API}/lieux/proches?lng=${userPos[0]}&lat=${userPos[1]}&limit=8${tp}`);
+    const data = await res.json();
+    addMarkers(data); renderList(data.features);
+    map.flyTo({ center:userPos, zoom:14, duration:800 });
+  } catch(e) {}
+  btnP.textContent='\u{1F4CD} Lieux proches de moi'; btnP.disabled=false;
+});
+
+map.on('load', () => loadLieux());
+
+// ── DASHBOARD ──
+const FALLBACK = {
   globales:{total_batiments:766423,surface_min:2.5,surface_max:42732.4,surface_moy:102.5,surface_mediane:70.6,surface_totale_km2:78.59},
   zones:[
     {zone_nom:'Pikine',nb_batiments:154491,surface_moy:98.2},
-    {zone_nom:'Rufisque / P\u00e9riph\u00e9rie',nb_batiments:144263,surface_moy:112.7},
+    {zone_nom:'Rufisque / Peripherie',nb_batiments:144263,surface_moy:112.7},
     {zone_nom:'Parcelles Assainies',nb_batiments:135477,surface_moy:95.4},
     {zone_nom:'Dakar Centre',nb_batiments:113640,surface_moy:88.1},
-    {zone_nom:'Gu\u00e9diawaye',nb_batiments:110106,surface_moy:103.6},
-    {zone_nom:'Plateau / M\u00e9dina',nb_batiments:108446,surface_moy:117.3},
+    {zone_nom:'Guediawaye',nb_batiments:110106,surface_moy:103.6},
+    {zone_nom:'Plateau / Medina',nb_batiments:108446,surface_moy:117.3},
   ],
   classes:[
-    {classe_surface:'< 25 m\u00b2',nb_batiments:154426},
-    {classe_surface:'25\u201350 m\u00b2',nb_batiments:147726},
-    {classe_surface:'50\u2013100 m\u00b2',nb_batiments:173679},
-    {classe_surface:'100\u2013200 m\u00b2',nb_batiments:216187},
-    {classe_surface:'200\u2013500 m\u00b2',nb_batiments:67114},
-    {classe_surface:'500\u20131000 m\u00b2',nb_batiments:5157},
-    {classe_surface:'> 1000 m\u00b2',nb_batiments:2134},
+    {classe_surface:'< 25 m2',nb_batiments:154426},
+    {classe_surface:'25-50 m2',nb_batiments:147726},
+    {classe_surface:'50-100 m2',nb_batiments:173679},
+    {classe_surface:'100-200 m2',nb_batiments:216187},
+    {classe_surface:'200-500 m2',nb_batiments:67114},
+    {classe_surface:'500-1000 m2',nb_batiments:5157},
+    {classe_surface:'> 1000 m2',nb_batiments:2134},
   ],
 };
 
-async function loadPortail(){
-  portailLoaded=true;
-  let data=FALLBACK;
-  try{const res=await fetch(`${API_BASE}/batiments/dashboard`);if(res.ok)data=await res.json();}catch(e){}
-  const g=data.globales;
-  document.getElementById('kpi-total').textContent=Number(g.total_batiments).toLocaleString('fr-FR');
-  document.getElementById('kpi-surface').textContent=g.surface_totale_km2+' km\u00b2';
-  document.getElementById('kpi-moy').textContent=g.surface_moy+' m\u00b2';
-  document.getElementById('kpi-med').textContent='M\u00e9diane : '+g.surface_mediane+' m\u00b2';
-  document.getElementById('s-min').textContent=g.surface_min+' m\u00b2';
-  document.getElementById('s-max').textContent=Number(g.surface_max).toLocaleString('fr-FR')+' m\u00b2';
-  document.getElementById('s-moy').textContent=g.surface_moy+' m\u00b2';
-  document.getElementById('s-med').textContent=g.surface_mediane+' m\u00b2';
-  renderZones(data.zones);renderChartC(data.classes);renderChartZ(data.zones);
+async function loadDashboard() {
+  let data = FALLBACK;
+  try {
+    const res = await fetch(`${API}/batiments/dashboard`);
+    if (res.ok) data = await res.json();
+  } catch(e) {}
+  dashData = data;
+  const g = data.globales;
+
+  // KPIs accueil
+  document.getElementById('kpi-total').textContent = Number(g.total_batiments).toLocaleString('fr-FR');
+  document.getElementById('kpi-surf').textContent  = g.surface_totale_km2+' km\u00b2';
+  document.getElementById('kpi-moy').textContent   = g.surface_moy+' m\u00b2';
+  document.getElementById('kpi-med').textContent   = 'M\u00e9diane : '+g.surface_mediane+' m\u00b2';
+
+  // Page bâtiments
+  document.getElementById('b-total').textContent = Number(g.total_batiments).toLocaleString('fr-FR');
+  document.getElementById('b-surf').textContent  = g.surface_totale_km2+' km\u00b2';
+  document.getElementById('b-min').textContent   = g.surface_min+' m\u00b2';
+  document.getElementById('b-max').textContent   = Number(g.surface_max).toLocaleString('fr-FR')+' m\u00b2';
+  document.getElementById('b-moy').textContent   = g.surface_moy+' m\u00b2';
+  document.getElementById('b-med').textContent   = g.surface_mediane+' m\u00b2';
+
+  // Page surfaces KPIs
+  document.getElementById('surf-min').textContent = g.surface_min+' m\u00b2';
+  document.getElementById('surf-max').textContent = Number(g.surface_max).toLocaleString('fr-FR')+' m\u00b2';
+  document.getElementById('surf-moy').textContent = g.surface_moy+' m\u00b2';
+  document.getElementById('surf-med').textContent = g.surface_mediane+' m\u00b2';
+
+  renderZonesTable('bat-zones-tbody', data.zones, true);
+  renderZonesTable('zones-detail-tbody', data.zones, true);
+  renderClassesList(data.classes);
+  renderZoneChips(data.zones);
+  renderCharts(data);
 }
-function renderZones(zones){
-  const total=zones.reduce((s,z)=>s+Number(z.nb_batiments),0);
-  const max=Math.max(...zones.map(z=>Number(z.nb_batiments)));
-  document.getElementById('zones-tbody').innerHTML=zones.map((z,i)=>{
-    const pct=((Number(z.nb_batiments)/total)*100).toFixed(1),w=((Number(z.nb_batiments)/max)*100).toFixed(0),c=ZONE_COLORS[i%ZONE_COLORS.length];
-    return `<tr><td><span class="z-dot" style="background:${c};"></span>${z.zone_nom}</td><td><strong>${Number(z.nb_batiments).toLocaleString('fr-FR')}</strong></td><td><span class="z-pct">${pct}%</span></td><td class="z-bar-cell"><div class="z-bar"><div class="z-fill" style="width:${w}%;background:${c};"></div></div></td></tr>`;
+
+function renderZonesTable(tbodyId, zones, showSurf=false) {
+  const total = zones.reduce((s,z)=>s+Number(z.nb_batiments),0);
+  const max   = Math.max(...zones.map(z=>Number(z.nb_batiments)));
+  document.getElementById(tbodyId).innerHTML = zones.map((z,i) => {
+    const pct = ((Number(z.nb_batiments)/total)*100).toFixed(1);
+    const w   = ((Number(z.nb_batiments)/max)*100).toFixed(0);
+    const c   = ZONE_COLORS[i%ZONE_COLORS.length];
+    const surfCell = showSurf ? `<td>${z.surface_moy||'--'} m\u00b2</td>` : '';
+    return `<tr>
+      <td><span class="zdot" style="background:${c};"></span>${z.zone_nom}</td>
+      <td><strong>${Number(z.nb_batiments).toLocaleString('fr-FR')}</strong></td>
+      <td><span class="zpct">${pct}%</span></td>
+      ${surfCell}
+      <td><div class="zbar"><div class="zfill" style="width:${w}%;background:${c};"></div></div></td>
+    </tr>`;
   }).join('');
 }
-function renderChartC(classes){
-  const ctx=document.getElementById('chartClasses').getContext('2d');
-  if(chartClasses)chartClasses.destroy();
-  chartClasses=new Chart(ctx,{type:'bar',data:{labels:classes.map(c=>c.classe_surface),datasets:[{label:'B\u00e2timents',data:classes.map(c=>Number(c.nb_batiments)),backgroundColor:['#e05a3a','#e07a3a','#e0a03a','#00c896','#0094ff','#8860c0','#c0392b'],borderRadius:4,borderWidth:0}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.parsed.y.toLocaleString('fr-FR')+' b\u00e2timents'}}},scales:{x:{grid:{display:false},ticks:{color:'#7a8fa8',font:{size:10},maxRotation:30}},y:{grid:{color:'rgba(255,255,255,0.05)'},ticks:{color:'#7a8fa8',font:{size:10},callback:v=>(v/1000).toFixed(0)+'K'}}}}});
-}
-function renderChartZ(zones){
-  const ctx=document.getElementById('chartZones').getContext('2d');
-  const total=zones.reduce((s,z)=>s+Number(z.nb_batiments),0);
-  if(chartZones)chartZones.destroy();
-  chartZones=new Chart(ctx,{type:'doughnut',data:{labels:zones.map(z=>z.zone_nom),datasets:[{data:zones.map(z=>Number(z.nb_batiments)),backgroundColor:ZONE_COLORS,borderWidth:2,borderColor:'#182231'}]},options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>' '+c.parsed.toLocaleString('fr-FR')+' b\u00e2timents'}}}}});
-  document.getElementById('zones-legend').innerHTML=zones.map((z,i)=>{
-    const pct=((Number(z.nb_batiments)/total)*100).toFixed(1);
-    return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:7px;"><div style="width:9px;height:9px;border-radius:50%;background:${ZONE_COLORS[i]};flex-shrink:0;"></div><span style="color:#7a8fa8;flex:1;font-size:11px;">${z.zone_nom.replace(' / P\u00e9riph\u00e9rie','')}</span><strong style="color:#e8edf5;">${pct}%</strong></div>`;
+
+function renderClassesList(classes) {
+  const total = classes.reduce((s,c)=>s+Number(c.nb_batiments),0);
+  const max   = Math.max(...classes.map(c=>Number(c.nb_batiments)));
+  const colors= ['#ff4060','#ff7a00','#ffb800','#00e5a0','#0088ff','#bd5fff','#ff4060'];
+  document.getElementById('classes-list').innerHTML = classes.map((c,i) => {
+    const pct = ((Number(c.nb_batiments)/total)*100).toFixed(1);
+    const w   = ((Number(c.nb_batiments)/max)*100).toFixed(0);
+    return `<div class="card" style="margin-bottom:8px;display:flex;align-items:center;gap:14px;">
+      <div style="width:10px;height:40px;background:${colors[i]};border-radius:3px;flex-shrink:0;"></div>
+      <div style="flex:1;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:4px;">${c.classe_surface}</div>
+        <div style="height:5px;background:rgba(255,255,255,0.07);border-radius:3px;overflow:hidden;"><div style="width:${w}%;height:100%;background:${colors[i]};border-radius:3px;"></div></div>
+      </div>
+      <div style="text-align:right;flex-shrink:0;">
+        <div style="font-size:14px;font-weight:700;color:${colors[i]};">${Number(c.nb_batiments).toLocaleString('fr-FR')}</div>
+        <div style="font-size:10px;color:var(--mu);">${pct}%</div>
+      </div>
+    </div>`;
   }).join('');
+}
+
+function renderZoneChips(zones) {
+  document.getElementById('zone-chips').innerHTML = zones.map(z =>
+    `<button onclick="rechercherZoneNom('${z.zone_nom}')" style="padding:5px 12px;border-radius:20px;border:1px solid var(--bd);background:transparent;color:var(--mu);font-size:11px;cursor:pointer;" onmouseover="this.style.borderColor='var(--ac)';this.style.color='var(--ac)'" onmouseout="this.style.borderColor='var(--bd)';this.style.color='var(--mu)'">${z.zone_nom}</button>`
+  ).join('');
+}
+
+function rechercherZone() {
+  const q = document.getElementById('zone-search').value.trim();
+  if (!q || !dashData) return;
+  rechercherZoneNom(q);
+}
+
+function rechercherZoneNom(nom) {
+  if (!dashData) { loadDashboard(); return; }
+  document.getElementById('zone-search').value = nom;
+  const zones = dashData.zones;
+  const total = zones.reduce((s,z)=>s+Number(z.nb_batiments),0);
+  const found = zones.filter(z => z.zone_nom.toLowerCase().includes(nom.toLowerCase()));
+  if (!found.length) {
+    document.getElementById('search-results').innerHTML='<div class="empty">Aucune zone trouv\u00e9e pour "'+nom+'"</div>';
+    return;
+  }
+  document.getElementById('search-results').innerHTML = found.map((z,i) => {
+    const pct = ((Number(z.nb_batiments)/total)*100).toFixed(1);
+    const c = ZONE_COLORS[i%ZONE_COLORS.length];
+    return `<div class="search-result">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+        <div style="width:10px;height:10px;border-radius:50%;background:${c};"></div>
+        <div class="sr-zone">${z.zone_nom}</div>
+      </div>
+      <div class="sr-stats">
+        <div>B\u00e2timents : <span class="sr-val">${Number(z.nb_batiments).toLocaleString('fr-FR')}</span></div>
+        <div>Part : <span class="sr-val">${pct}%</span></div>
+        <div>Surf. moy : <span class="sr-val">${z.surface_moy||'--'} m\u00b2</span></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function renderCharts(data) {
+  // Chart classes accueil
+  if (chartC) chartC.destroy();
+  chartC = new Chart(document.getElementById('chartC').getContext('2d'), {
+    type:'bar', data:{ labels:data.classes.map(c=>c.classe_surface), datasets:[{ data:data.classes.map(c=>Number(c.nb_batiments)), backgroundColor:['#ff4060','#ff7a00','#ffb800','#00e5a0','#0088ff','#bd5fff','#ff4060'], borderRadius:4, borderWidth:0 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>' '+c.parsed.y.toLocaleString('fr-FR')+' b\u00e2timents'}} }, scales:{ x:{grid:{display:false},ticks:{color:'#5a7a99',font:{size:9},maxRotation:30}}, y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#5a7a99',font:{size:9},callback:v=>(v/1000).toFixed(0)+'K'}} } }
+  });
+
+  // Chart zones donut accueil
+  const total = data.zones.reduce((s,z)=>s+Number(z.nb_batiments),0);
+  if (chartZ) chartZ.destroy();
+  chartZ = new Chart(document.getElementById('chartZ').getContext('2d'), {
+    type:'doughnut', data:{ labels:data.zones.map(z=>z.zone_nom), datasets:[{ data:data.zones.map(z=>Number(z.nb_batiments)), backgroundColor:ZONE_COLORS, borderWidth:2, borderColor:'#111f35' }] },
+    options:{ responsive:true, maintainAspectRatio:false, cutout:'65%', plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>' '+c.parsed.toLocaleString('fr-FR')+' b\u00e2timents'}} } }
+  });
+  document.getElementById('zlegend').innerHTML = data.zones.map((z,i) =>
+    `<div style="display:flex;align-items:center;gap:5px;margin-bottom:6px;"><div style="width:8px;height:8px;border-radius:50%;background:${ZONE_COLORS[i]};flex-shrink:0;"></div><span style="color:#5a7a99;flex:1;font-size:11px;">${z.zone_nom.replace(' / Peripherie','')}</span><strong style="font-size:11px;">${((Number(z.nb_batiments)/total)*100).toFixed(1)}%</strong></div>`
+  ).join('');
+
+  // Chart surfaces
+  if (chartSurf) chartSurf.destroy();
+  chartSurf = new Chart(document.getElementById('chartSurf').getContext('2d'), {
+    type:'bar', data:{ labels:data.classes.map(c=>c.classe_surface), datasets:[{ data:data.classes.map(c=>Number(c.nb_batiments)), backgroundColor:['#ff4060','#ff7a00','#ffb800','#00e5a0','#0088ff','#bd5fff','#ff4060'], borderRadius:4, borderWidth:0 }] },
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>' '+c.parsed.y.toLocaleString('fr-FR')+' b\u00e2timents'}} }, scales:{ x:{grid:{display:false},ticks:{color:'#5a7a99',font:{size:10}}}, y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#5a7a99',font:{size:10},callback:v=>(v/1000).toFixed(0)+'K'}} } }
+  });
+
+  // Charts zones page
+  setTimeout(() => {
+    const ctx2 = document.getElementById('chartZones2');
+    const ctxB = document.getElementById('chartZonesBar');
+    if (ctx2 && ctxB) {
+      if (chartZ2) chartZ2.destroy();
+      chartZ2 = new Chart(ctx2.getContext('2d'), {
+        type:'doughnut', data:{ labels:data.zones.map(z=>z.zone_nom), datasets:[{ data:data.zones.map(z=>Number(z.nb_batiments)), backgroundColor:ZONE_COLORS, borderWidth:2, borderColor:'#111f35' }] },
+        options:{ responsive:true, maintainAspectRatio:false, cutout:'60%', plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>' '+c.parsed.toLocaleString('fr-FR')}} } }
+      });
+      if (chartZB) chartZB.destroy();
+      chartZB = new Chart(ctxB.getContext('2d'), {
+        type:'bar', data:{ labels:data.zones.map(z=>z.zone_nom.split(' ')[0]), datasets:[{ data:data.zones.map(z=>Number(z.nb_batiments)), backgroundColor:ZONE_COLORS, borderRadius:4, borderWidth:0 }] },
+        options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>' '+c.parsed.y.toLocaleString('fr-FR')}} }, scales:{ x:{grid:{display:false},ticks:{color:'#5a7a99',font:{size:9}}}, y:{grid:{color:'rgba(255,255,255,0.04)'},ticks:{color:'#5a7a99',font:{size:9},callback:v=>(v/1000).toFixed(0)+'K'}} } }
+      });
+    }
+  }, 100);
+}
+
+// ── EXPORT ──
+function exportCSV() {
+  if (!dashData) { toast('Donn\u00e9es non charg\u00e9es'); return; }
+  const rows = ['Zone,Batiments,Surface_moy_m2,Part_pct'];
+  const total = dashData.zones.reduce((s,z)=>s+Number(z.nb_batiments),0);
+  dashData.zones.forEach(z => {
+    const pct = ((Number(z.nb_batiments)/total)*100).toFixed(1);
+    rows.push(`${z.zone_nom},${z.nb_batiments},${z.surface_moy||''},${pct}`);
+  });
+  const blob = new Blob([rows.join('\n')], {type:'text/csv'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='dakargeo_zones.csv'; a.click();
+  toast('\u2705 CSV t\u00e9l\u00e9charg\u00e9 !');
+}
+
+function exportJSON() {
+  if (!dashData) { toast('Donn\u00e9es non charg\u00e9es'); return; }
+  const blob = new Blob([JSON.stringify(dashData, null, 2)], {type:'application/json'});
+  const a = document.createElement('a'); a.href=URL.createObjectURL(blob); a.download='dakargeo_stats.json'; a.click();
+  toast('\u2705 JSON t\u00e9l\u00e9charg\u00e9 !');
 }
 </script>
 </body>
