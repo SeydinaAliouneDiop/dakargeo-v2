@@ -355,7 +355,8 @@ html,body{height:100%;font-family:'Segoe UI',system-ui,sans-serif;background:var
           </div>
         </div>
         <button id="btn-load-bat">&#x1F5FA; Charger les b&#226;timents</button>
-        <button id="btn-export-bat" onclick="exportBatGeoJSON()" style="display:none;width:100%;padding:9px;background:var(--s2);border:1px solid var(--go);border-radius:var(--rd);color:var(--go);font-size:11.5px;font-weight:600;cursor:pointer;margin-top:4px;" onmouseover="this.style.background='rgba(255,184,0,0.1)'" onmouseout="this.style.background='var(--s2)'">&#x1F4BE; Exporter en GeoJSON</button>
+        id="btn-export-bat" onclick="exportBatZone()" style="display:none;width:100%;padding:9px;background:var(--s2);border:1px solid var(--go);border-radius:var(--rd);color:var(--go);font-size:11.5px;font-weight:600;cursor:pointer;margin-top:4px;">&#x1F4BE; T&#233;l&#233;charger TOUS les b&#226;timents (GeoJSON)</button>
+        <div id="export-info" style="font-size:9.5px;color:var(--mu);margin-top:3px;text-align:center;"></div>
         <div class="bat-legend">
           <div style="font-size:10px;color:var(--mu);margin-bottom:4px;">L&#233;gende des zones</div>
           <div class="leg-row"><div class="leg-sq" style="background:#00e5a0;"></div>Pikine</div>
@@ -783,7 +784,7 @@ document.getElementById('btn-load-bat').addEventListener('click',async()=>{
     map.getSource('batiments').setData(gj);
     map.setPaintProperty('batiments-line','line-width',showBorder?1:0);
     toast(`\u2705 ${gj.features.length} b\u00e2timents affich\u00e9s`);
-    window._lastBatGeoJSON=gj;window._lastBatZone=zone||'toutes-zones';document.getElementById('btn-export-bat').style.display='block';
+    window._lastBatGeoJSON=gj;window._lastBatZone=zone||'toutes-zones';document.getElementById('btn-export-bat').style.display='block';document.getElementById('export-info').textContent='Zone : '+(zone||'Toutes')+' | '+gj.features.length+' affichés (clic pour tout télécharger)';
     if(gj.features.length>0){
       const coords=gj.features.flatMap(f=>{
         const g=f.geometry;
@@ -1119,16 +1120,43 @@ function renderCharts(data){
   },100);
 }
 
-function exportBatGeoJSON(){
-  if(!window._lastBatGeoJSON){toast("⚠️ Chargez d'abord des bâtiments");return;}
-  const zone=window._lastBatZone||'batiments';
-  const nb=window._lastBatGeoJSON.features.length;
-  const blob=new Blob([JSON.stringify(window._lastBatGeoJSON,null,2)],{type:'application/json'});
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(blob);
-  a.download='dakargeo_'+zone.replace(/ \//g,'_')+'_'+nb+'bat.geojson';
-  a.click();
-  toast('✅ '+nb+' bâtiments exportés en GeoJSON !');
+function exportBatZone(){
+  const zone = document.getElementById('bat-zone-select').value;
+  const btn = document.getElementById('btn-export-bat');
+  const info = document.getElementById('export-info');
+  const counts = {'Pikine':154491,'Rufisque / Peripherie':144263,'Parcelles Assainies':135477,'Dakar Centre':113640,'Guediawaye':110106,'Plateau / Medina':108446,'':766423};
+  const nb = counts[zone] !== undefined ? counts[zone] : '?';
+  const url = zone ? API+'/batiments/export?zone='+encodeURIComponent(zone) : API+'/batiments/export';
+
+  btn.textContent = 'Preparation du fichier...';
+  btn.disabled = true;
+  info.textContent = 'Telechargement de '+(typeof nb==='number'?nb.toLocaleString('fr-FR'):nb)+' batiments... Cela peut prendre 1-2 minutes.';
+
+  fetch(url)
+    .then(res => {
+      if(!res.ok) throw new Error('HTTP '+res.status);
+      const cd = res.headers.get('Content-Disposition')||'';
+      const match = cd.match(/filename="([^"]+)"/);
+      const filename = match ? match[1] : 'dakargeo_export.geojson';
+      return Promise.all([res.blob(), Promise.resolve(filename)]);
+    })
+    .then(([blob, filename]) => {
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(a.href);
+      toast('\u2705 Export termine : ' + filename);
+      info.textContent = 'Fichier telecharge : ' + filename;
+    })
+    .catch(e => {
+      toast('\u274C Erreur : ' + e.message);
+      info.textContent = 'Erreur lors du telechargement';
+    })
+    .finally(() => {
+      btn.textContent = '\ud83d\udcbe Telecharger TOUS les batiments (GeoJSON)';
+      btn.disabled = false;
+    });
 }
 
 function exportCSV(){

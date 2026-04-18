@@ -3,6 +3,10 @@ import pool from '../db';
 
 const router = Router();
 
+// ─────────────────────────────────────────────
+// GET /api/batiments/stats
+// Stats globales : total, surface min/max/moy/mediane
+// ─────────────────────────────────────────────
 router.get('/stats', async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(`SELECT * FROM stats_globales`);
@@ -13,6 +17,10 @@ router.get('/stats', async (_req: Request, res: Response) => {
   }
 });
 
+// ─────────────────────────────────────────────
+// GET /api/batiments/zones
+// Répartition des bâtiments par zone géographique
+// ─────────────────────────────────────────────
 router.get('/zones', async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(`SELECT * FROM stats_zones ORDER BY nb_batiments DESC`);
@@ -23,6 +31,10 @@ router.get('/zones', async (_req: Request, res: Response) => {
   }
 });
 
+// ─────────────────────────────────────────────
+// GET /api/batiments/classes
+// Distribution par classe de surface
+// ─────────────────────────────────────────────
 router.get('/classes', async (_req: Request, res: Response) => {
   try {
     const result = await pool.query(`SELECT * FROM stats_classes`);
@@ -33,6 +45,10 @@ router.get('/classes', async (_req: Request, res: Response) => {
   }
 });
 
+// ─────────────────────────────────────────────
+// GET /api/batiments/dashboard
+// Toutes les données du portail en 1 appel
+// ─────────────────────────────────────────────
 router.get('/dashboard', async (_req: Request, res: Response) => {
   try {
     const [globales, zones, classes] = await Promise.all([
@@ -52,6 +68,11 @@ router.get('/dashboard', async (_req: Request, res: Response) => {
   }
 });
 
+// ─────────────────────────────────────────────
+// GET /api/batiments/geojson?zone=Pikine&limit=500
+// GeoJSON d'un échantillon de bâtiments pour la carte
+// (766K bâtiments = trop lourd, on limite par zone)
+// ─────────────────────────────────────────────
 router.get('/geojson', async (req: Request, res: Response) => {
   try {
     const zone  = req.query.zone  as string | undefined;
@@ -112,6 +133,10 @@ router.get('/geojson', async (req: Request, res: Response) => {
   }
 });
 
+// ─────────────────────────────────────────────
+// GET /api/batiments/proches?lng=X&lat=Y&limit=10
+// Bâtiments les plus proches d'un point (KNN)
+// ─────────────────────────────────────────────
 router.get('/proches', async (req: Request, res: Response) => {
   try {
     const { lng, lat, limit } = req.query;
@@ -165,6 +190,86 @@ router.get('/proches', async (req: Request, res: Response) => {
   } catch (err: any) {
     console.error('Erreur /proches:', err);
     res.status(500).json({ error: 'Erreur serveur', detail: err.message });
+  }
+});
+
+// ─────────────────────────────────────────────
+// GET /api/batiments/export?zone=Pikine
+// Export COMPLET d'une zone en GeoJSON (streaming)
+// Télécharge tous les bâtiments sans limite
+// ─────────────────────────────────────────────
+router.get('/export', async (req: Request, res: Response) => {
+  const zone = req.query.zone as string | undefined;
+
+  try {
+    // Compter d'abord
+    const countQ = zone
+      ? `SELECT COUNT(*) FROM batiments WHERE zone_nom = $1`
+      : `SELECT COUNT(*) FROM batiments`;
+    const countR = await pool.query(countQ, zone ? [zone] : []);
+    const total = parseInt(countR.rows[0].count);
+
+    const filename = zone
+      ? `dakargeo_${zone.replace(/[^a-zA-Z0-9]/g, '_')}_${total}bat.geojson`
+      : `dakargeo_toutes_zones_${total}bat.geojson`;
+
+    // Headers pour téléchargement direct
+    res.setHeader('Content-Type', 'application/geo+json');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Access-Control-Expose-Headers', 'Content-Disposition');
+
+    // Début du GeoJSON
+    res.write('{"type":"FeatureCollection","features":[\n');
+
+    // Requête par lots de 5000 pour ne pas exploser la mémoire
+    const BATCH = 5000;
+    let offset = 0;
+    let first = true;
+
+    while (offset < total) {
+      const query = zone
+        ? `SELECT ogc_fid, surface_m2, zone_nom, classe_surface,
+             ST_AsGeoJSON(geom)::json AS geometry
+           FROM batiments WHERE zone_nom = $1
+           ORDER BY ogc_fid LIMIT $2 OFFSET $3`
+        : `SELECT ogc_fid, surface_m2, zone_nom, classe_surface,
+             ST_AsGeoJSON(geom)::json AS geometry
+           FROM batiments
+           ORDER BY ogc_fid LIMIT $1 OFFSET $2`;
+
+      const params = zone ? [zone, BATCH, offset] : [BATCH, offset];
+      const result = await pool.query(query, params);
+
+      for (const row of result.rows) {
+        const feature = JSON.stringify({
+          type: 'Feature',
+          geometry: row.geometry,
+          properties: {
+            id:             row.ogc_fid,
+            surface_m2:     row.surface_m2,
+            zone_nom:       row.zone_nom,
+            classe_surface: row.classe_surface,
+          },
+        });
+        res.write((first ? '' : ',\n') + feature);
+        first = false;
+      }
+
+      offset += BATCH;
+      // Laisser respirer le serveur
+      await new Promise(r => setTimeout(r, 10));
+    }
+
+    // Fin du GeoJSON
+    res.write('\n]}');
+    res.end();
+
+  } catch (err: any) {
+    console.error('Erreur /export:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Erreur export', detail: err.message });
+    }
   }
 });
 
