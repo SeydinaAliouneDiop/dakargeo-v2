@@ -9,18 +9,20 @@ dotenv.config();
 const app  = express();
 const PORT = process.env.PORT ? Number(process.env.PORT) : 3000;
 
-app.use(cors());
+app.use(cors({ origin: '*' }));
 app.use(express.json());
 
-// ── Routes ──
 app.use('/api/lieux',     lieuxRouter);
 app.use('/api/batiments', batimentsRouter);
 
-// Health check (Render ping)
 app.get('/api/health', (_req, res) => {
   res.json({ status: 'ok', project: 'DakarGeo v2', version: '2.0.0' });
 });
 
+app.get('/', (_req, res) => {
+  res.json({ message: 'DakarGeo v2 API', health: '/api/health' });
+});
+
 app.listen(PORT, () => {
-  console.log(`🚀 DakarGeo v2 — serveur démarré sur port ${PORT}`);
+  console.log(`DakarGeo v2 — port ${PORT}`);
 });
