@@ -1,0 +1,88 @@
+
+
+services:
+  demo:
+    md_template: no
+
+  tms:
+    use_grid_names: true
+    origin: 'nw'
+
+  wmts:
+    restful: true
+    restful_template: '/{Layer}/{TileMatrixSet}/{TileMatrix}/{TileCol}/{TileRow}.png'
+
+  wms:
+    md:
+      title: DakarGeo v2 — Tuiles cartographiques
+      abstract: Cache de tuiles pour la région de Dakar
+      contact:
+        person: Seydina Alioune Diop
+    srs: ['EPSG:4326', 'EPSG:3857', 'EPSG:32628']
+    image_formats: ['image/png', 'image/jpeg']
+
+sources:
+  osm_source:
+    type: tile
+    url: https://tile.openstreetmap.org/%(z)s/%(x)s/%(y)s.png
+    grid: GLOBAL_WEBMERCATOR
+    coverage:
+      bbox: [-17.6, 14.5, -17.0, 15.0]  # Bounding box Dakar
+      bbox_srs: 'EPSG:4326'
+    http:
+      headers:
+        User-Agent: DakarGeo-v2-MapProxy/1.0
+
+  osm_satellite:
+    type: tile
+    url: https://tile.openstreetmap.fr/hot/%(z)s/%(x)s/%(y)s.png
+    grid: GLOBAL_WEBMERCATOR
+
+caches:
+  osm_cache:
+    grids: [GLOBAL_WEBMERCATOR]
+    sources: [osm_source]
+    cache:
+      type: file
+      directory: /tmp/mapproxy_cache/osm
+    meta_size: [4, 4]       
+    meta_buffer: 80         
+    minimize_meta_requests: true
+
+  satellite_cache:
+    grids: [GLOBAL_WEBMERCATOR]
+    sources: [osm_satellite]
+    cache:
+      type: file
+      directory: /tmp/mapproxy_cache/satellite
+
+
+layers:
+  - name: osm
+    title: OpenStreetMap — Dakar (mis en cache)
+    sources: [osm_cache]
+
+  - name: satellite
+    title: OSM HOT — Dakar (mis en cache)
+    sources: [satellite_cache]
+
+grids:
+  GLOBAL_WEBMERCATOR:
+    srs: EPSG:3857
+    tile_size: [256, 256]
+    bbox: [-17.6, 14.5, -17.0, 15.0]
+    bbox_srs: EPSG:4326
+    origin: nw
+    res_factor: 2.0
+   
+    num_levels: 10
+    min_res: 39135.758    
+    max_res: 0.597        
+
+globals:
+  cache:
+    lock_dir: /tmp/mapproxy_lock
+    tile_lock_dir: /tmp/mapproxy_tile_lock
+  http:
+    timeout: 30
+    ssl_no_cert_checks: false
