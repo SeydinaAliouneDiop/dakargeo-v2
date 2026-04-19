@@ -624,32 +624,11 @@ function showSbPanel(panel,btn){
 const overlay=document.getElementById('overlay'),sidebar=document.getElementById('sidebar');
 document.getElementById('btn-menu').addEventListener('click',()=>{sidebar.classList.add('open');overlay.classList.add('open');});
 overlay.addEventListener('click',()=>{sidebar.classList.remove('open');overlay.classList.remove('open');});
-const map = new maplibregl.Map({
-  container: 'map',
-  style: {
-    version: 8,
-    sources: {
-      osm: {
-        type: 'raster',
-        tiles: [
-          'http://localhost:8090/tms/1.0.0/osm/{z}/{x}/{y}.png'
-        ],
-        tileSize: 256,
-        attribution: '© OpenStreetMap'
-      }
-    },
-    layers: [
-      {
-        id: 'osm',
-        type: 'raster',
-        source: 'osm'
-      }
-    ]
-  },
-  center: [-17.4677, 14.7167],
-  zoom: 12,
-  minZoom: 9,
-  maxZoom: 18,
+
+const map=new maplibregl.Map({
+  container:'map',
+  style:{version:8,sources:{osm:{type:'raster',tiles:['https://tile.openstreetmap.org/{z}/{x}/{y}.png'],tileSize:256,attribution:'\u00a9 OpenStreetMap'}},layers:[{id:'osm',type:'raster',source:'osm'}]},
+  center:[-17.4677,14.7167],zoom:12,minZoom:9,maxZoom:18,
 });
 map.addControl(new maplibregl.NavigationControl(),'top-right');
 map.addControl(new maplibregl.ScaleControl(),'bottom-right');
